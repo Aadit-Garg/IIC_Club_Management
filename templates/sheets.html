@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Sheets - IIC Club Management{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📊 Sheets</h1>
+    <button class="btn btn-primary" onclick="openModal('createSheetModal')">+ New Sheet</button>
+</div>
+
+<div class="dashboard-grid">
+    {% for sheet in sheets %}
+    <div class="card clickable-card" onclick="location.href='{{ url_for('views.sheet_view', sheet_id=sheet.id) }}'">
+        <div class="d-flex justify-between align-start">
+            <div>
+                <h3 class="card-title">{{ sheet.name }}</h3>
+                <p class="text-muted" style="font-size: 12px;">
+                    Created by {{ sheet.creator.name }}
+                    {% if sheet.channel %} · # {{ sheet.channel.name }}{% endif %}
+                </p>
+                <p class="text-muted" style="font-size: 11px; margin-top: 4px;">{{ sheet.created_at.strftime('%b %d, %Y') }}</p>
+            </div>
+            <div class="card-icon">📋</div>
+        </div>
+        
+        <div class="card-footer" style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px;">
+            <div class="d-flex justify-between align-center">
+                <span class="badge role-member">Sheet</span>
+                {% if sheet.created_by == current_user.id or current_user.role == 'jsec' %}
+                <form method="POST" action="{{ url_for('views.delete_sheet', sheet_id=sheet.id) }}" onclick="event.stopPropagation()">
+                    <button type="submit" class="btn btn-text btn-sm" style="color: var(--red);" onclick="return confirm('Delete this sheet?')">Delete</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state" style="grid-column: 1 / -1; margin-top: 40px;">
+        <div class="empty-icon">📂</div>
+        <p class="empty-text">No sheets created yet. Create one to start collaborating!</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Create Sheet Modal -->
+<div class="modal-overlay" id="createSheetModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">Create New Sheet</h2>
+            <button class="modal-close" onclick="closeModal('createSheetModal')">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('views.create_sheet') }}">
+            <div class="form-group">
+                <label class="form-label" for="sheet_name">Sheet Name</label>
+                <input type="text" id="sheet_name" name="name" class="form-control" placeholder="e.g. Budget 2024" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="channel_id">Link to Group (Optional)</label>
+                <select id="channel_id" name="channel_id" class="form-control">
+                    <option value="">No link</option>
+                    {% for ch in channels %}
+                    <option value="{{ ch.id }}"># {{ ch.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 mt-2">Create Sheet</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+</script>
+{% endblock %}

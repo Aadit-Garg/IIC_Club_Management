@@ -1,0 +1,1108 @@
+{% extends "base.html" %}
+
+{% block title %}Discussion - IIC Club Management{% endblock %}
+
+{% block head %}
+<style>
+    /* Toggle Switch */
+    .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--border); transition: .4s; border-radius: 20px; }
+    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: var(--primary); }
+    input:checked + .slider:before { transform: translateX(20px); }
+    
+    .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .setting-item:last-child { border-bottom: none; }
+
+    /* Back button - hidden on desktop */
+    .chat-back-btn {
+        display: none;
+        background: none; border: none; color: var(--text);
+        font-size: 1.25rem; cursor: pointer; padding: 0.25rem;
+        margin-right: 0.5rem;
+    }
+
+    /* WhatsApp-style mobile layout */
+    @media (max-width: 48rem) {
+        .chat-wrapper {
+            height: calc(100vh - 4rem) !important;
+            flex-direction: row;
+            position: relative;
+        }
+
+        /* Channel list takes full width on mobile */
+        .channel-sidebar {
+            width: 100% !important; min-width: 100% !important;
+            border-right: none !important;
+            height: 100% !important; max-height: none !important;
+        }
+
+        /* Chat area takes full width on mobile */
+        .chat-area {
+            width: 100%; min-width: 100%;
+        }
+
+        .chat-back-btn { display: inline-flex; }
+
+        /* When a channel is active, hide sidebar show chat */
+        .chat-wrapper.chat-active .channel-sidebar { display: none !important; }
+        .chat-wrapper.chat-active .chat-area { display: flex !important; }
+
+        /* When no channel is active, show sidebar hide chat */
+        .chat-wrapper:not(.chat-active) .channel-sidebar { display: flex !important; }
+        .chat-wrapper:not(.chat-active) .chat-area { display: none !important; }
+
+        /* Full-width messages on mobile */
+        .chat-msg { max-width: 85%; }
+        .chat-input-row { gap: 0.375rem; }
+    }
+
+    /* Special Cards */
+    .special-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        margin-top: 5px;
+        max-width: 400px;
+        transition: transform 0.2s;
+    }
+    .special-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    
+    .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .card-icon { 
+        width: 32px; height: 32px; border-radius: 6px; 
+        display: flex; align-items: center; justify-content: center; 
+        font-size: 1.2em; 
+    }
+    .card-title { font-weight: 600; color: var(--text); font-size: 0.95em; }
+    .card-subtitle { font-size: 0.8em; color: var(--text-muted); }
+    .card-body { font-size: 0.85em; color: var(--text-muted); margin-bottom: 10px; line-height: 1.4; }
+    .card-actions { display: flex; gap: 8px; }
+    .card-btn {
+        flex: 1; text-align: center; padding: 6px; border-radius: 6px;
+        font-size: 0.85em; text-decoration: none; font-weight: 500;
+        transition: background 0.2s;
+    }
+    
+    /* Resource Card */
+    .card-resource { border-left: 3px solid #10B981; }
+    .card-resource .card-icon { background: rgba(16, 185, 129, 0.1); color: #10B981; }
+    .card-resource .card-btn { background: #10B981; color: white; }
+    .card-resource .card-btn:hover { background: #059669; }
+
+    /* Meeting Card */
+    .card-meeting { border-left: 3px solid #6366F1; }
+    .card-meeting .card-icon { background: rgba(99, 102, 241, 0.1); color: #6366F1; }
+    .card-meeting .card-btn { background: #6366F1; color: white; }
+    .card-meeting .card-btn:hover { background: #4F46E5; }
+
+    /* MoM Card */
+    .card-mom { border-left: 3px solid #F59E0B; }
+    .card-mom .card-icon { background: rgba(245, 158, 11, 0.1); color: #F59E0B; }
+    .card-mom .card-btn { background: #F59E0B; color: white; }
+    .card-mom .card-btn:hover { background: #D97706; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chat-wrapper {% if current_channel %}chat-active{% endif %}">
+    <!-- Channel List (full page on mobile when no channel selected) -->
+    <aside class="channel-sidebar" id="channelDrawer">
+        <div class="channel-header">
+            <h3>Groups</h3>
+            <button class="btn btn-sm btn-text" onclick="openModal('createChannelModal')">＋</button>
+        </div>
+
+        <div class="channel-list" id="groupListContainer">
+            {% for ch in channels %}
+            <a href="{{ url_for('views.discussion', channel_id=ch.id) }}" 
+               class="channel-item {% if current_channel and current_channel.id == ch.id %}active{% endif %}">
+                <div class="channel-name">
+                    <span class="channel-icon">#</span> {{ ch.name }}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+
+        <div class="channel-header" style="margin-top: 20px;">
+            <h3>Direct Messages</h3>
+            <button class="btn btn-sm btn-text" onclick="openModal('newDmModal')">＋</button>
+        </div>
+        <div class="channel-list" id="dmListContainer">
+            {% for dm in dm_channels %}
+            <a href="{{ url_for('views.discussion', channel_id=dm.channel.id) }}" 
+               class="channel-item {% if current_channel and current_channel.id == dm.channel.id %}active{% endif %}">
+                <div class="channel-name">
+                    <div class="chat-msg-avatar" style="background-color: {{ dm.other_user.avatar_color }}; width: 20px; height: 20px; font-size: 10px;">
+                        {{ dm.other_user.name[0] | upper }}
+                    </div>
+                    <span>{{ dm.other_user.name }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </aside>
+
+    <!-- Main Chat Area (full page on mobile when channel selected) -->
+    <main class="chat-area">
+        {% if current_channel %}
+        <header class="chat-header">
+            <div class="chat-header-info" style="display:flex;align-items:center;">
+                <a href="{{ url_for('views.discussion') }}" class="chat-back-btn" title="Back to channels">←</a>
+                <h2>
+                    {% if current_channel.channel_type == 'dm' %}
+                        {% for dm in dm_channels %}
+                            {% if dm.channel.id == current_channel.id %}
+                                @{{ dm.other_user.name }}
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        # {{ current_channel.name }}
+                    {% endif %}
+                </h2>
+                {% if current_channel.description %}
+                <p class="chat-header-desc">{{ current_channel.description }}</p>
+                {% endif %}
+            </div>
+            <div class="chat-header-actions">
+                {% if current_channel.channel_type == 'group' %}
+                <button class="btn btn-text btn-sm" onclick="openModal('channelSettingsModal')" title="Group Settings">⚙️</button>
+                {% endif %}
+            </div>
+        </header>
+
+        <div class="chat-messages" id="chatMessages">
+            <div style="flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-muted);">
+                <div class="spinner"></div>
+                <p style="margin-left: 10px;">Loading messages...</p>
+            </div>
+        </div>
+
+        <div class="chat-input-area">
+            <div class="autocomplete-popup" id="mentionPopup" style="display: none;"></div>
+            <div class="autocomplete-popup" id="slashPopup" style="display: none;"></div>
+
+            <div class="chat-input-form" id="chatForm">
+                <div class="chat-action-btns">
+                    <button type="button" class="chat-action-btn" onclick="openTaskPicker()" title="Reference a Task">📋</button>
+                    <button type="button" class="chat-action-btn" onclick="openModal('createPollModal')" title="Create a Poll">📊</button>
+                    <button type="button" class="chat-action-btn" onclick="openResourcePicker()" title="Share a Resource">📎</button>
+                </div>
+                <input type="text" class="form-control" id="chatInput"
+                    placeholder="Message {% if current_channel.channel_type == 'dm' %}...{% else %}#{{ current_channel.name }}{% endif %}... (@ to mention)"
+                    autocomplete="off">
+                <button type="button" class="btn btn-primary" id="sendBtn">Send</button>
+            </div>
+        </div>
+
+        {% else %}
+        <div class="empty-state" style="margin-top: 100px;">
+            <div class="empty-icon">💬</div>
+            <p class="empty-text">Select a group or DM to start chatting.</p>
+        </div>
+        {% endif %}
+    </main>
+</div>
+
+<!-- Modals -->
+<!-- New DM Modal -->
+<div class="modal-overlay" id="newDmModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">New Direct Message</h2>
+            <button class="modal-close" onclick="closeModal('newDmModal')">✕</button>
+        </div>
+        <div class="picker-list" style="margin-top: 10px;">
+            {% for m in all_members %}
+            {% if m.id != current_user.id %}
+            <form method="GET" action="{{ url_for('views.open_dm', target_user_id=m.id) }}">
+                <button type="submit" class="picker-item" style="width: 100%; border: none; background: transparent; text-align: left;">
+                    <div class="chat-msg-avatar" style="background-color: {{ m.avatar_color }};">
+                        {{ m.name[0] | upper }}
+                    </div>
+                    <div class="picker-item-info">
+                        <div class="picker-item-title">{{ m.name }}</div>
+                        <div class="picker-item-meta">{{ m.role | upper }} · {{ m.unique_id }}</div>
+                    </div>
+                </button>
+            </form>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Channel Settings Modal -->
+{% if current_channel and current_channel.channel_type == 'group' %}
+<div class="modal-overlay" id="channelSettingsModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title"># {{ current_channel.name }} Settings</h2>
+            <button class="modal-close" onclick="closeModal('channelSettingsModal')">✕</button>
+        </div>
+        <div class="sidebar-section">
+            <h4 class="section-title">Members</h4>
+            
+            <div class="add-member-ui">
+                <div class="d-flex gap-1 mb-2">
+                    <div style="position:relative; flex:1;">
+                         <input type="text" id="addMemberSearch" class="form-control form-control-sm" placeholder="Search users..." oninput="searchUsersToAdd(this.value)" autocomplete="off">
+                         <div id="addMemberResults" class="picker-list" style="position:absolute; top:100%; left:0; right:0; max-height:150px; display:none; background:var(--bg-secondary); border:1px solid var(--border); z-index:1000; overflow-y:auto; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);"></div>
+                    </div>
+                </div>
+                <div class="d-flex gap-2 mb-2 align-center" style="flex-wrap:wrap;">
+                    <span style="font-size:11px; color:var(--text-muted);">Quick Add Role:</span>
+                    <button type="button" class="btn btn-sm btn-secondary" style="font-size:11px; padding:2px 8px;" onclick="addRoleToChannel('jsec')">JSecs</button>
+                    <button type="button" class="btn btn-sm btn-secondary" style="font-size:11px; padding:2px 8px;" onclick="addRoleToChannel('coordinator')">Coords</button>
+                    <button type="button" class="btn btn-sm btn-secondary" style="font-size:11px; padding:2px 8px;" onclick="addRoleToChannel('member')">Members</button>
+                    <button type="button" class="btn btn-sm btn-secondary" style="font-size:11px; padding:2px 8px;" onclick="addRoleToChannel('all')">All</button>
+                </div>
+            </div>
+            <form id="addMemberForm" method="POST" action="{{ url_for('views.add_channel_member', channel_id=current_channel.id) }}" style="display:none;">
+                <input type="hidden" name="username" id="addMemberUsername">
+                <input type="hidden" name="role" id="addMemberRole">
+            </form>
+
+            <div class="picker-list" style="max-height: 200px;">
+                {% for cm in channel_members %}
+                <div class="picker-item">
+                    <div class="chat-msg-avatar" style="background-color: {{ cm.user.avatar_color }};">
+                        {{ cm.user.name[0] | upper }}
+                    </div>
+                    <div class="picker-item-info">
+                        <div class="picker-item-title">{{ cm.user.name }}</div>
+                        <div class="picker-item-meta">{{ cm.user.role }}</div>
+                    </div>
+                    {% if cm.user.id != current_user.id and (current_user.role_level() >= 2 or current_channel.created_by == current_user.id) %}
+                    <form method="POST" action="{{ url_for('views.remove_channel_member', channel_id=current_channel.id) }}" style="margin-left: auto;">
+                        <input type="hidden" name="user_id" value="{{ cm.user.id }}">
+                        <button type="submit" class="btn btn-sm btn-text" style="color: var(--text-muted); padding: 2px 6px;" title="Remove Member">✕</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            </div>
+        </div>
+        
+        <h4 class="section-title" style="margin-top: 20px;">Settings</h4>
+        <div class="settings-list">
+            <div class="setting-item">
+                <span>Mute Notifications</span>
+                <label class="switch">
+                    <input type="checkbox" id="settingMute" onchange="toggleSetting('mute')" {% if current_channel_member.is_muted %}checked{% endif %}>
+                    <span class="slider round"></span>
+                </label>
+            </div>
+            <div class="setting-item">
+                <span>Pin Channel</span>
+                <label class="switch">
+                    <input type="checkbox" id="settingPin" onchange="toggleSetting('pin')" {% if current_channel_member.is_pinned %}checked{% endif %}>
+                    <span class="slider round"></span>
+                </label>
+            </div>
+            <div class="setting-item">
+                <span>Archive Channel</span>
+                <label class="switch">
+                    <input type="checkbox" id="settingArchive" onchange="toggleSetting('archive')" {% if current_channel_member.is_archived %}checked{% endif %}>
+                    <span class="slider round"></span>
+                </label>
+            </div>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid var(--border); margin: 15px 0;">
+        <form method="POST" action="{{ url_for('views.leave_channel', channel_id=current_channel.id) }}">
+            <button type="submit" class="btn btn-secondary w-100" style="color: var(--red);">Leave Group</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- ... rest of modals ... -->
+<!-- Emoji Picker Overlay -->
+<div class="emoji-picker-overlay" id="emojiPickerOverlay" style="display: none;">
+    <div class="emoji-picker">
+        <div class="emoji-picker-grid">
+            {% for e in ['👍','👎','❤️','😂','😮','😢','🔥','🎉','👀','💯','✅','❌'] %}
+            <button class="emoji-btn" data-emoji="{{ e }}">{{ e }}</button>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Poll Creation Modal -->
+<div class="modal-overlay" id="createPollModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">📊 Create Poll</h2>
+            <button class="modal-close" onclick="closeModal('createPollModal')">✕</button>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Question</label>
+            <input type="text" id="pollQuestion" class="form-control" placeholder="What should we do?">
+        </div>
+        <div id="pollOptionsContainer">
+            <div class="form-group">
+                <label class="form-label">Option 1</label>
+                <input type="text" class="form-control poll-option-input" placeholder="Option 1">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Option 2</label>
+                <input type="text" class="form-control poll-option-input" placeholder="Option 2">
+            </div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm mb-2" onclick="addPollOption()">+ Add Option</button>
+        <button type="button" class="btn btn-primary w-100" onclick="submitPoll()">Create Poll</button>
+    </div>
+</div>
+
+<!-- Poll Voters Modal -->
+<div class="modal-overlay" id="pollVotersModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">📊 Poll Voters</h2>
+            <button class="modal-close" onclick="closeModal('pollVotersModal')">✕</button>
+        </div>
+        <div id="pollVotersContent" class="picker-list" style="max-height: 300px; overflow-y: auto;">
+            <!-- Populated by JS -->
+        </div>
+    </div>
+</div>
+
+<!-- Task Picker Modal -->
+<div class="modal-overlay" id="taskPickerModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">📋 Reference a Task</h2>
+            <button class="modal-close" onclick="closeModal('taskPickerModal')">✕</button>
+        </div>
+        <input type="text" id="taskSearchInput" class="form-control mb-2" placeholder="Search tasks..." oninput="filterTaskList()">
+        <div id="taskPickerList" class="picker-list">
+            <div style="color:var(--text-muted); text-align:center; padding:20px;">Loading tasks...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Resource Picker Modal -->
+<div class="modal-overlay" id="resourcePickerModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">📎 Share a Resource</h2>
+            <button class="modal-close" onclick="closeModal('resourcePickerModal')">✕</button>
+        </div>
+        <input type="text" id="resourceSearchInput" class="form-control mb-2" placeholder="Search resources..." oninput="filterResourceList()">
+        <div id="resourcePickerList" class="picker-list">
+            <div style="color:var(--text-muted); text-align:center; padding:20px;">Loading resources...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Channel Modal -->
+<div class="modal-overlay" id="createChannelModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">Create Group</h2>
+            <button class="modal-close" onclick="closeModal('createChannelModal')">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('views.create_channel') }}">
+            <div class="form-group">
+                <label class="form-label" for="channel_name">Group Name</label>
+                <input type="text" id="channel_name" name="name" class="form-control" placeholder="e.g. hackathon-team" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="channel_desc">Description</label>
+                <input type="text" id="channel_desc" name="description" class="form-control" placeholder="What's this group about?">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="min_role_level">Min Role Level</label>
+                <select id="min_role_level" name="min_role_level" class="form-control">
+                    <option value="1">Everyone</option>
+                    <option value="2">Coordinators & JSecs</option>
+                    <option value="3">JSecs Only</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 mt-2">Create Group</button>
+        </form>
+    </div>
+</div>
+
+<!-- Scripts -->
+    <!-- Mention Notification Panel -->
+    <button id="mentionToggle" class="mention-btn-toggle" onclick="toggleMentionPanel()">
+        @
+        <div id="mentionBadge" class="mention-badge" style="display:none;">0</div>
+    </button>
+
+    <div id="mentionPanel">
+        <div class="mention-header">
+            <div class="mention-title">
+                <span>@</span> Mentions
+            </div>
+            <button onclick="toggleMentionPanel()" style="background:none;border:none;cursor:pointer;font-size:18px;">✕</button>
+        </div>
+        <div id="mentionList" class="mention-list">
+            <!-- Populated by JS -->
+        </div>
+    </div>
+
+</body>
+<script>
+(function() {
+    {% if current_channel %}
+    var CHANNEL_ID = {{ current_channel.id }};
+    var CURRENT_USER_ID = {{ current_user.id }};
+    var CURRENT_USER_NAME = "{{ current_user.name }}";
+    var CURRENT_USER_ROLE = '{{ current_user.role }}';
+    if (!CHANNEL_ID) return;
+
+    const chatMessages = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const emojiOverlay = document.getElementById('emojiPickerOverlay');
+    
+    let lastMsgsData = "";
+    let pollInterval = null;
+    let pendingMsgType = 'text';
+    let pendingTaskRef = null;
+    let reactingMsgId = null;
+    let currentMessages = [];
+
+    function renderMsg(msg) {
+        const own = msg.is_own ? ' own' : '';
+        const initial = msg.author_name[0].toUpperCase();
+
+        // Mention highlighting
+        let content = msg.content;
+        
+        // Check for Metadata Card
+        let cardHtml = '';
+        const dataMatch = content.match(/<!-- DATA: (.*?) -->/);
+        if (dataMatch) {
+            try {
+                const data = JSON.parse(dataMatch[1]);
+                content = content.replace(dataMatch[0], ''); // Remove hidden data from text
+                
+                // Render Card based on type
+                if (data.type === 'resource') {
+                    const icon = data.resource_type === 'sheet' ? '📗' : '📊';
+                    cardHtml = `
+                    <div class="special-card card-resource">
+                        <div class="card-header">
+                            <div class="card-icon">${icon}</div>
+                            <div>
+                                <div class="card-title">${data.title}</div>
+                                <div class="card-subtitle">Shared Resource</div>
+                            </div>
+                        </div>
+                        <div class="card-body">${data.description || 'No description provided.'}</div>
+                        <div class="card-actions">
+                            <a href="${data.url}" target="_blank" class="card-btn">Open Resource ↗</a>
+                        </div>
+                    </div>`;
+                    content = ''; // Hide text if we show card? Or keep text? Let's hide the raw markdown text for cleaner look
+                } 
+                else if (data.type === 'meeting' || data.type === 'event') {
+                    const icon = data.type === 'meeting' ? '🤝' : '📅';
+                    cardHtml = `
+                    <div class="special-card card-meeting">
+                        <div class="card-header">
+                            <div class="card-icon">${icon}</div>
+                            <div>
+                                <div class="card-title">${data.title}</div>
+                                <div class="card-subtitle">${data.date} • ${data.time}</div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            ${data.location ? `📍 ${data.location}<br>` : ''}
+                            ${data.description ? data.description.substring(0, 100) + (data.description.length>100?'...':'') : ''}
+                        </div>
+                        <div class="card-actions">
+                            <a href="/calendar?event_id=${data.id}" class="card-btn">View Details</a>
+                        </div>
+                    </div>`;
+                    content = '';
+                }
+                else if (data.type === 'mom') {
+                    cardHtml = `
+                    <div class="special-card card-mom">
+                        <div class="card-header">
+                            <div class="card-icon">📝</div>
+                            <div>
+                                <div class="card-title">MoM: ${data.title}</div>
+                                <div class="card-subtitle">${data.date}</div>
+                            </div>
+                        </div>
+                        <div class="card-body" style="max-height:400px;overflow-y:auto;white-space:pre-wrap;">${data.mom_full || data.mom_preview || 'Minutes of Meeting available.'}</div>
+                        <div class="card-actions">
+                            <a href="/calendar?event_id=${data.id}" class="card-btn">View Event</a>
+                        </div>
+                    </div>`;
+                    content = '';
+                }
+
+            } catch (e) { console.error('Card parse error', e); }
+        }
+
+        // Mention highlighting (if content still exists)
+        if (content) {
+            const mentionRegex = new RegExp(`@${CURRENT_USER_NAME}\\b`, 'gi');
+            if (content.match(mentionRegex)) {
+                content = content.replace(mentionRegex, '<span class="mention">$&</span>');
+            }
+        }
+
+        let taskRefHtml = '';
+        if (msg.message_type === 'task_ref' && msg.referenced_task) {
+            const t = msg.referenced_task;
+            taskRefHtml = `<div style="margin-top:3px;padding:3px 6px;background:rgba(99,102,241,0.1);border-radius:4px;font-size:11px;">📋 ${t.title} <span class="badge badge-${t.status}" style="font-size:9px;">${t.status}</span></div>`;
+        }
+
+        let pollHtml = '';
+        if (msg.poll) {
+            const p = msg.poll;
+            const opts = p.options.map(o => {
+                const voted = o.user_voted ? ' voted' : '';
+                return `<div class="poll-opt${voted}" onclick="votePoll(${p.id}, ${o.id})">
+                    <div class="poll-opt-row">
+                        <span class="poll-radio">${o.user_voted ? '●' : '○'}</span>
+                        <span class="poll-opt-text">${o.text}</span>
+                        <span class="poll-opt-count">${o.votes}</span>
+                    </div>
+                    <div class="poll-bar"><div class="poll-bar-fill" style="width:${o.pct}%"></div></div>
+                </div>`;
+            }).join('');
+            
+            pollHtml = `<div class="poll-card">
+                <div class="poll-question">${p.question}</div>
+                <div class="poll-opts">${opts}</div>
+                <div class="poll-footer">
+                    ${p.total_votes} vote${p.total_votes !== 1 ? 's' : ''}
+                    <span style="margin:0 4px;">·</span>
+                    <a href="#" onclick="showPollVoters(${msg.id}); return false;" style="color:var(--blue);text-decoration:none;">View Votes</a>
+                </div>
+            </div>`;
+        }
+
+        let reactionsHtml = '';
+        if (msg.reactions && Object.keys(msg.reactions).length) {
+            reactionsHtml = '<div style="display:flex;gap:3px;margin-top:2px;">';
+            for (const [emoji, data] of Object.entries(msg.reactions)) {
+                const active = data.user_reacted ? 'background:rgba(99,102,241,0.3);' : '';
+                reactionsHtml += `<button onclick="toggleReaction(${msg.id}, '${emoji}')" style="font-size:10px;padding:1px 4px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;background:rgba(255,255,255,0.05);${active}cursor:pointer;color:#fff;">${emoji} ${data.count}</button>`;
+            }
+            reactionsHtml += '</div>';
+        }
+
+        const canDelete = msg.is_own || CURRENT_USER_ROLE === 'jsec';
+
+        return `<div class="chat-msg${own}" id="msg-${msg.id}">
+            <div class="chat-msg-avatar" style="background:${msg.author_avatar_color}">${initial}</div>
+            <div class="chat-msg-bubble">
+                <span class="chat-msg-name">${msg.author_name}</span><span class="chat-msg-time">${msg.created_at}</span>
+                <div class="chat-msg-text">${content}${cardHtml}${taskRefHtml}${pollHtml}</div>
+                ${reactionsHtml}
+                <div class="chat-msg-actions">
+                    <button class="msg-action-btn react-btn" onclick="openEmojiPicker(${msg.id})" title="React">😊</button>
+                    ${canDelete ? `<button class="msg-action-btn del-btn" onclick="deleteMessage(${msg.id})" title="Delete">×</button>` : ''}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    // Global mention panel handles notifications now.
+    // We only need to ensure scrollToMessage is available for the global handler if we are on this page.
+    window.scrollToMessage = function(msgId) {
+        const el = document.getElementById('msg-' + msgId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.remove('highlight-message'); // convert to standard class
+            void el.offsetWidth; // trigger reflow
+            el.classList.add('highlight-message');
+        } else {
+             // If message not found (maybe not loaded yet), try waiting or just log
+             console.log("Message not found for scrolling:", msgId);
+        }
+    };
+
+    // Check for highlight param on load
+    document.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const highlightId = urlParams.get('highlight');
+        if (highlightId) {
+            // Wait for messages to load then scroll
+            const checkExist = setInterval(() => {
+                const el = document.getElementById('msg-' + highlightId);
+                if (el) {
+                    clearInterval(checkExist);
+                    scrollToMessage(highlightId);
+                    // Clean URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            }, 500);
+            setTimeout(() => clearInterval(checkExist), 5000); // Stop after 5s
+        }
+    });
+
+
+    // State for pagination
+    let oldestMsgId = null;
+    let newestMsgId = null;
+    let isLoading = false;
+    let allHistoryLoaded = false;
+    let initialLoadDone = false;
+
+    // Scroll Listener for History
+    chatMessages.addEventListener('scroll', () => {
+        if (chatMessages.scrollTop === 0 && !allHistoryLoaded && !isLoading && initialLoadDone) {
+            console.log("Fetching older messages...");
+            loadMessages({before: oldestMsgId});
+        }
+    });
+
+    function loadMessages(params = {}) {
+        if (isLoading) return;
+        isLoading = true;
+        
+        let url = `/api/messages/${CHANNEL_ID}?limit=100`;
+        if (params.before) url += `&before=${params.before}`;
+        if (params.after) url += `&after=${params.after}`;
+
+        const isPolling = !!params.after;
+        const isHistory = !!params.before;
+
+        fetch(url).then(r => r.json()).then(msgs => {
+            isLoading = false;
+            
+            if (!msgs.length) {
+                if (isHistory) {
+                    allHistoryLoaded = true;
+                    // Optional: Show "Start of history" notice
+                }
+                if (!isPolling && !isHistory) {
+                    chatMessages.innerHTML = '<div class="empty-state"><div class="empty-icon">💬</div><p class="empty-text">No messages yet. Start the conversation!</p></div>';
+                    initialLoadDone = true;
+                }
+                return;
+            }
+
+            // Update IDs
+            const batchMinId = msgs[0].id;
+            const batchMaxId = msgs[msgs.length-1].id;
+
+            if (!oldestMsgId || batchMinId < oldestMsgId) oldestMsgId = batchMinId;
+            if (!newestMsgId || batchMaxId > newestMsgId) newestMsgId = batchMaxId;
+            
+            if (isHistory) {
+                // Prepend older messages
+                const oldScrollHeight = chatMessages.scrollHeight;
+                const html = msgs.map(m => renderMsg(m)).join('');
+                chatMessages.insertAdjacentHTML('afterbegin', html);
+                currentMessages = [...msgs, ...currentMessages];
+                
+                // Restore scroll position
+                requestAnimationFrame(() => {
+                    chatMessages.scrollTop = chatMessages.scrollHeight - oldScrollHeight;
+                });
+                
+                // If we got fewer than limit, we reached the end
+                if (msgs.length < 100) allHistoryLoaded = true;
+                
+            } else if (isPolling) {
+                // Append new messages
+                const wasAtBottom = (chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight) < 100;
+                
+                const html = msgs.map(m => renderMsg(m)).join('');
+                chatMessages.insertAdjacentHTML('beforeend', html);
+                currentMessages = [...currentMessages, ...msgs];
+                
+                if (wasAtBottom) {
+                    requestAnimationFrame(() => {
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    });
+                }
+                updateMentionPanel(); // Update badge if needed? Actually mention panel is global
+                
+            } else {
+                // Initial load
+                chatMessages.innerHTML = msgs.map(m => renderMsg(m)).join('');
+                currentMessages = msgs;
+                requestAnimationFrame(() => {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                });
+                initialLoadDone = true;
+                
+                // Check if we loaded full history already
+                if (msgs.length < 100) allHistoryLoaded = true;
+            }
+        }).catch(e => {
+            console.error(e);
+            isLoading = false;
+        });
+    }
+    
+    // Alias for existing calls
+    function loadAllMessages() {
+        loadMessages();
+    }
+
+    window.pollMessages = function() { 
+        if (!initialLoadDone) return;
+        if (newestMsgId) loadMessages({after: newestMsgId});
+    }
+
+    window.sendMessage = function() {
+        const content = chatInput.value.trim();
+        if (!content) return;
+
+        const payload = {
+            content: content,
+            message_type: pendingMsgType,
+            referenced_task_id: pendingTaskRef
+        };
+        console.log("Sending message:", payload);
+
+        fetch(`/api/messages/${CHANNEL_ID}/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(r => r.json()).then(() => {
+            chatInput.value = '';
+            pendingMsgType = 'text';
+            pendingTaskRef = null;
+            // No full reload needed, polling will catch it or we append manually?
+            // Better to just call poll immediately
+            pollMessages();
+        });
+    };
+
+    window.toggleReaction = function(msgId, emoji) {
+        fetch(`/api/messages/${msgId}/react`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({emoji})
+        }).then(() => loadAllMessages());
+    };
+
+    window.deleteMessage = function(msgId) {
+        if (!confirm('Delete this message?')) return;
+        fetch(`/api/messages/${msgId}/delete`, { method: 'POST' }).then(() => loadAllMessages());
+    };
+
+    window.votePoll = function(pollId, optionId) {
+        fetch(`/api/polls/${pollId}/vote`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({option_id: optionId})
+        }).then(() => loadAllMessages());
+    };
+
+    window.addPollOption = function() {
+        const c = document.getElementById('pollOptionsContainer');
+        const n = c.querySelectorAll('.poll-option-input').length + 1;
+        const div = document.createElement('div');
+        div.className = 'form-group';
+        div.innerHTML = `<label class="form-label">Option ${n}</label><input type="text" class="form-control poll-option-input" placeholder="Option ${n}">`;
+        c.appendChild(div);
+    };
+
+    window.submitPoll = function() {
+        const qInput = document.getElementById('pollQuestion');
+        const q = qInput.value.trim();
+        const opts = [...document.querySelectorAll('.poll-option-input')].map(i => i.value.trim()).filter(v => v);
+        if (!q || opts.length < 2) { alert('Need a question and at least 2 options'); return; }
+        
+        fetch('/api/polls/create', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({channel_id: CHANNEL_ID, question: q, options: opts})
+        }).then(r => r.json()).then(() => {
+            qInput.value = '';
+            const container = document.getElementById('pollOptionsContainer');
+            container.innerHTML = `
+                <div class="form-group">
+                    <label class="form-label">Option 1</label>
+                    <input type="text" class="form-control poll-option-input" placeholder="Option 1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Option 2</label>
+                    <input type="text" class="form-control poll-option-input" placeholder="Option 2">
+                </div>`;
+            closeModal('createPollModal');
+            loadAllMessages();
+        });
+    };
+
+    window.openTaskPicker = function() {
+        window.openModal('taskPickerModal');
+        fetch('/api/tasks').then(r => r.json()).then(tasks => {
+            renderTaskPickerList(tasks);
+        });
+    };
+
+    window.showPollVoters = function(msgId) {
+        const msg = currentMessages.find(m => m.id === msgId);
+        if (!msg || !msg.poll) return;
+        
+        const p = msg.poll;
+        let html = '';
+        p.options.forEach(opt => {
+            if (opt.voters && opt.voters.length > 0) {
+                html += `<div style="margin-bottom:16px;">
+                    <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">
+                        ${opt.text} <span style="font-weight:400;color:var(--text-muted);font-size:12px;margin-left:4px;">(${opt.votes})</span>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;">`;
+                opt.voters.forEach(v => {
+                    html += `<div class="chip" style="background:var(--bg-secondary);padding:4px 8px;border-radius:12px;font-size:12px;display:flex;align-items:center;gap:4px;border:1px solid var(--border);">
+                        <span style="font-size:10px;">👤</span> ${v.name}
+                    </div>`;
+                });
+                html += `</div></div>`;
+            } else {
+                html += `<div style="margin-bottom:16px;">
+                    <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:4px;">${opt.text}</div>
+                    <div style="font-size:12px;color:var(--text-muted);font-style:italic;padding-top:4px;">No votes yet</div>
+                </div>`;
+            }
+        });
+        
+        const contentEl = document.getElementById('pollVotersContent');
+        contentEl.innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--text-muted);">No votes yet</div>';
+        openModal('pollVotersModal');
+    };
+
+    function renderTaskPickerList(tasks) {
+        const listEl = document.getElementById('taskPickerList');
+        if (!tasks.length) { listEl.innerHTML = '<div class="p-2 text-center text-muted">No tasks available</div>'; return; }
+        listEl.innerHTML = tasks.map(t => `
+            <div class="picker-item" onclick="selectTaskRef(${t.id}, '${t.title.replace(/'/g, "\\'")}')">
+                <div class="picker-item-icon">📋</div>
+                <div class="picker-item-info">
+                    <div class="picker-item-title">${t.title}</div>
+                    <div class="picker-item-meta"><span class="badge badge-${t.status}">${t.status}</span></div>
+                </div>
+            </div>
+        `).join('');
+    }
+    window.selectTaskRef = function(id, title) {
+        chatInput.value = `Referencing Task: ${title}`;
+        pendingMsgType = 'task_ref';
+        pendingTaskRef = id;
+        window.closeModal('taskPickerModal');
+        chatInput.focus();
+    };
+
+    window.openResourcePicker = function() {
+        window.openModal('resourcePickerModal');
+        fetch('/api/resources').then(r => r.json()).then(res => {
+            renderResourcePickerList(res);
+        });
+    };
+    function renderResourcePickerList(resources) {
+        const listEl = document.getElementById('resourcePickerList');
+        if (!resources.length) { listEl.innerHTML = '<div class="p-2 text-center text-muted">No resources available</div>'; return; }
+        listEl.innerHTML = resources.map(r => `
+            <div class="picker-item" onclick="selectResourceRef('${r.link}', '${r.title.replace(/'/g, "\\'")}')">
+                <div class="picker-item-icon">📎</div>
+                <div class="picker-item-info">
+                    <div class="picker-item-title">${r.title}</div>
+                    <div class="picker-item-meta">${r.resource_type}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+    window.selectResourceRef = function(link, title) {
+        chatInput.value = `${title}: ${link}`;
+        window.closeModal('resourcePickerModal');
+        chatInput.focus();
+    };
+
+    // Global Modal helpers
+    window.openModal = function(id) { document.getElementById(id).style.display = 'flex'; };
+    window.closeModal = function(id) { document.getElementById(id).style.display = 'none'; };
+    window.openEmojiPicker = function(msgId) { reactingMsgId = msgId; emojiOverlay.style.display = 'flex'; };
+
+    // ── @Mention and /Command Autocomplete ──
+    const mentionPopup = document.getElementById('mentionPopup');
+    const slashPopup   = document.getElementById('slashPopup');
+    let acActive = null; // 'mention' | 'slash' | null
+    let acIdx = -1; // currently highlighted index
+
+    const allMembers = [
+        { id: 'all', name: 'all', role: 'Notify Everyone' },
+        { id: 'jsec', name: 'jsec', role: 'Notify JSecs' },
+        { id: 'coordinator', name: 'coordinator', role: 'Notify Coordinators' },
+        { id: 'member', name: 'member', role: 'Notify Members' },
+        {% for m in all_members %}
+        { id: {{ m.id }}, name: "{{ m.name }}", role: "{{ m.role }}", avatar: "{{ m.avatar_color }}" },
+        {% endfor %}
+    ];
+
+    const slashCommands = [
+        { cmd: '/poll', label: '📊 Create a Poll', action: () => openModal('createPollModal') },
+        { cmd: '/task', label: '📋 Reference a Task', action: () => openTaskPicker() },
+        { cmd: '/resource', label: '📎 Share a Resource', action: () => openResourcePicker() },
+    ];
+
+    function getWordAtCursor() {
+        const val = chatInput.value;
+        const pos = chatInput.selectionStart;
+        const before = val.slice(0, pos);
+        const match = before.match(/([@/][\w]*)$/);
+        return match ? { word: match[1], start: pos - match[1].length, end: pos } : null;
+    }
+
+    function acHighlight(popup) {
+        popup.querySelectorAll('.ac-item').forEach((el, i) => el.classList.toggle('hl', i === acIdx));
+        const hl = popup.querySelector('.ac-item.hl');
+        if (hl) hl.scrollIntoView({ block: 'nearest' });
+    }
+
+    function showMentionPopup(filter) {
+        const q = filter.toLowerCase();
+        const matches = allMembers.filter(m => m.name.toLowerCase().includes(q)).slice(0, 8);
+        if (!matches.length) { mentionPopup.style.display = 'none'; acActive = null; return; }
+        mentionPopup.innerHTML = matches.map((m, i) => `<div class="ac-item${i===0?' hl':''}" data-name="${m.name}"><span style="font-weight:600;">@${m.name}</span><span style="font-size:10px;color:var(--text-muted);margin-left:8px;">${m.role}</span></div>`).join('');
+        mentionPopup.style.display = 'block';
+        acActive = 'mention'; acIdx = 0;
+        mentionPopup.querySelectorAll('.ac-item').forEach(el => {
+            el.onclick = () => insertAutocomplete('@' + el.dataset.name + ' ');
+        });
+    }
+
+    function showSlashPopup(filter) {
+        const q = filter.toLowerCase();
+        const matches = slashCommands.filter(c => c.cmd.includes(q));
+        if (!matches.length) { slashPopup.style.display = 'none'; acActive = null; return; }
+        slashPopup.innerHTML = matches.map((c, i) => `<div class="ac-item${i===0?' hl':''}" data-cmd="${c.cmd}">${c.label}</div>`).join('');
+        slashPopup.style.display = 'block';
+        acActive = 'slash'; acIdx = 0;
+        slashPopup.querySelectorAll('.ac-item').forEach(el => {
+            el.onclick = () => {
+                const cmd = slashCommands.find(c => c.cmd === el.dataset.cmd);
+                chatInput.value = '';
+                slashPopup.style.display = 'none';
+                acActive = null;
+                if (cmd) cmd.action();
+            };
+        });
+    }
+
+    function insertAutocomplete(text) {
+        const w = getWordAtCursor();
+        if (w) {
+            const val = chatInput.value;
+            chatInput.value = val.slice(0, w.start) + text + val.slice(w.end);
+            chatInput.selectionStart = chatInput.selectionEnd = w.start + text.length;
+        }
+        mentionPopup.style.display = 'none';
+        slashPopup.style.display = 'none';
+        acActive = null; acIdx = -1;
+        chatInput.focus();
+    }
+
+    chatInput.addEventListener('input', () => {
+        const w = getWordAtCursor();
+        if (!w) {
+            mentionPopup.style.display = 'none';
+            slashPopup.style.display = 'none';
+            acActive = null; acIdx = -1;
+            return;
+        }
+        if (w.word.startsWith('@')) {
+            showMentionPopup(w.word.slice(1));
+            slashPopup.style.display = 'none';
+        } else if (w.word.startsWith('/')) {
+            showSlashPopup(w.word);
+            mentionPopup.style.display = 'none';
+        }
+    });
+
+    // Add Member Search Logic
+    window.searchUsersToAdd = function(q) {
+        const resEl = document.getElementById('addMemberResults');
+        if (!q) { resEl.style.display='none'; return; }
+        // Filter out static roles and self
+        const matches = allMembers.filter(u => 
+            typeof u.id === 'number' && 
+            u.name.toLowerCase().includes(q.toLowerCase())
+        ).slice(0, 5);
+
+        if (!matches.length) { resEl.innerHTML='<div style="padding:8px;color:var(--text-muted);font-size:12px;">No users found</div>'; resEl.style.display='block'; return;}
+        
+        resEl.innerHTML = matches.map(u => `
+            <div class="picker-item" onclick="submitAddMember('${u.name}')">
+                <div class="chat-msg-avatar" style="background:${u.avatar || 'var(--primary)'};width:20px;height:20px;font-size:10px;margin-right:8px;">${u.name[0]}</div>
+                <div class="picker-item-info">
+                    <div class="picker-item-title">${u.name}</div>
+                    <div class="picker-item-meta">${u.role}</div>
+                </div>
+            </div>
+        `).join('');
+        resEl.style.display = 'block';
+    };
+
+    window.submitAddMember = function(name) {
+        document.getElementById('addMemberUsername').value = name;
+        document.getElementById('addMemberForm').submit();
+    };
+
+    window.addRoleToChannel = function(role) {
+        if(!confirm('Add all ' + role + ' users to this channel?')) return;
+        document.getElementById('addMemberRole').value = role;
+        document.getElementById('addMemberForm').submit();
+    };
+
+    // Init
+    loadAllMessages();
+    pollInterval = setInterval(pollMessages, 3000);
+
+    sendBtn.onclick = sendMessage;
+    chatInput.onkeydown = e => {
+        if (acActive) {
+            const popup = acActive === 'mention' ? mentionPopup : slashPopup;
+            const items = popup.querySelectorAll('.ac-item');
+            const count = items.length;
+            if (e.key === 'ArrowDown') { e.preventDefault(); acIdx = (acIdx + 1) % count; acHighlight(popup); return; }
+            if (e.key === 'ArrowUp')   { e.preventDefault(); acIdx = (acIdx - 1 + count) % count; acHighlight(popup); return; }
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                if (acIdx >= 0 && acIdx < count) items[acIdx].click();
+                return;
+            }
+            if (e.key === 'Escape') {
+                mentionPopup.style.display = 'none';
+                slashPopup.style.display = 'none';
+                acActive = null; acIdx = -1;
+                e.preventDefault();
+                return;
+            }
+            return;
+        }
+        if (e.key === 'Enter') sendMessage();
+    };
+
+    emojiOverlay.onclick = e => { if (e.target === emojiOverlay) emojiOverlay.style.display = 'none'; };
+    document.querySelectorAll('.emoji-btn').forEach(btn => {
+        btn.onclick = () => {
+            toggleReaction(reactingMsgId, btn.dataset.emoji);
+            emojiOverlay.style.display = 'none';
+        };
+    });
+
+    window.toggleSetting = function(type) {
+        fetch(`/api/channels/${CHANNEL_ID}/${type}`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                console.log(`Toggled ${type}:`, data);
+                // Optional: show toast
+            });
+    };
+
+    {% endif %}
+})();
+
+</script>
+{% endblock %}

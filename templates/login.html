@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Login — IIC Club{% endblock %}
+
+{% block fullpage %}
+<div class="login-page">
+    <div class="login-bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <div class="login-card">
+        <div class="login-logo">
+            <div class="logo-icon"><img src="{{ url_for('static', filename='iiclogo.png') }}" alt="IIC"
+                    style="width: 48px; height: 48px; border-radius: 10px;"></div>
+            <h1 class="login-title">IIC Club</h1>
+            <p class="login-sub">Sign in to your club management portal</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('auth.login') }}">
+            <div class="form-group">
+                <label class="form-label" for="email">Email Address</label>
+                <input type="email" id="email" name="email" class="form-control" placeholder="you@iic.club" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="password">Password</label>
+                <input type="password" id="password" name="password" class="form-control" placeholder="••••••••"
+                    required>
+            </div>
+            <button type="submit" class="btn btn-primary mt-2">Sign In →</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

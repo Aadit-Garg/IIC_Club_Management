@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}IIC Club Manager{% endblock %}</title>
+    <meta name="description" content="IIC Club Management Tool — Manage members, events, tasks, and resources.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.css"/>
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+    {% if current_user %}
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <div class="logo-icon"><img src="{{ url_for('static', filename='iiclogo.png') }}" alt="IIC"
+                            style="width: 32px; height: 32px; border-radius: 6px;"></div>
+                    <div>
+                        <span class="logo-text">IIC Club</span>
+                        <span class="logo-sub">Management Portal</span>
+                    </div>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <!-- Global Mention Notification Panel -->
+                    {% if current_channel %}
+                    <!-- Only show in channel context if needed, but we want system wide. 
+         However, the original request was for "system wide". 
+         Let's put it here available for all pages. -->
+                    {% endif %}
+
+                    <button id="mentionToggle" class="mention-btn-toggle" onclick="toggleMentionPanel()">
+                        @
+                        <div id="mentionBadge" class="mention-badge" style="display:none;">0</div>
+                    </button>
+
+                    <div id="mentionPanel">
+                        <div class="mention-header">
+                            <div class="mention-title">
+                                <span>@</span> Mentions
+                            </div>
+                            <button onclick="toggleMentionPanel()"
+                                style="background:none;border:none;cursor:pointer;font-size:18px;">✕</button>
+                        </div>
+                        <div id="mentionList" class="mention-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Toast Container -->
+                    <div id="toast-container" style="position:fixed;top:20px;right:20px;z-index:9999;"></div>
+
+                    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+                    <script>
+                        // Global Notification Logic
+                        (function () {
+                            const userId = {{ session.get('user_id') or 'null' }};
+                        if (!userId) return;
+
+                        let lastNotifCount = 0;
+
+                        // Request browser notification permission
+                        if ('Notification' in window && Notification.permission === 'default') {
+                            Notification.requestPermission();
+                        }
+
+                        // Poll for notifications every 10 seconds
+                        setInterval(checkNotifications, 10000);
+                        checkNotifications(); // Initial check
+
+                        function checkNotifications() {
+                            fetch('/api/notifications')
+                                .then(r => r.json())
+                                .then(notifs => {
+                                    // Fire browser push for NEW notifications
+                                    if (notifs.length > lastNotifCount && lastNotifCount >= 0) {
+                                        const newOnes = notifs.slice(0, notifs.length - lastNotifCount);
+                                        newOnes.forEach(n => fireBrowserNotification(n));
+                                    }
+                                    lastNotifCount = notifs.length;
+                                    updateMentionPanel(notifs);
+                                });
+                        }
+
+                        function fireBrowserNotification(n) {
+                            if ('Notification' in window && Notification.permission === 'granted') {
+                                const notif = new Notification(`${n.author_name}`, {
+                                    body: n.content.length > 80 ? n.content.slice(0,80) + '...' : n.content,
+                                    icon: '/static/iiclogo.png',
+                                    tag: 'notif-' + n.id
+                                });
+                                notif.onclick = function() {
+                                    window.focus();
+                                    window.location.href = `/chat/${n.channel_id}?highlight=${n.message_id}`;
+                                };
+                                setTimeout(() => notif.close(), 5000);
+                            }
+                        }
+
+                        // Channel Poller
+                        // Only poll if we are in the discussion context
+                        if (window.location.pathname.startsWith('/chat/') || window.location.pathname === '/discussion') {
+                            setInterval(updateChannelList, 5000);
+                            updateChannelList();
+                        }
+
+                        function updateChannelList() {
+                            fetch('/api/channels')
+                                .then(r => r.json())
+                                .then(channels => {
+                                    const currentPath = window.location.pathname;
+
+                                    // 1. Update discussion page containers if they exist
+                                    const groupContainer = document.getElementById('groupListContainer');
+                                    const dmContainer = document.getElementById('dmListContainer');
+
+                                    if (groupContainer) {
+                                        const groupHtml = channels
+                                            .filter(c => c.channel_type === 'group')
+                                            .map(c => {
+                                                const isActive = currentPath === `/chat/${c.id}` || (currentPath === '/discussion' && channels.indexOf(c) === 0);
+                                                return `
+                                    <a href="/chat/${c.id}" class="channel-item ${isActive ? 'active' : ''}">
+                                        <div class="channel-name">
+                                            <span class="channel-icon">#</span> ${c.name}
+                                        </div>
+                                    </a>`;
+                                            }).join('');
+                                        groupContainer.innerHTML = groupHtml;
+                                    }
+
+                                    if (dmContainer) {
+                                        const dmHtml = channels
+                                            .filter(c => c.channel_type === 'dm')
+                                            .map(c => {
+                                                const isActive = currentPath === `/chat/${c.id}`;
+                                                const initial = c.other_user_name ? c.other_user_name[0].toUpperCase() : '?';
+                                                return `
+                                    <a href="/chat/${c.id}" class="channel-item ${isActive ? 'active' : ''}">
+                                        <div class="channel-name">
+                                            <div class="chat-msg-avatar" style="background-color: ${c.other_user_avatar_color}; width: 20px; height: 20px; font-size: 10px;">
+                                                ${initial}
+                                            </div>
+                                            <span>${c.other_user_name || 'Direct Message'}</span>
+                                        </div>
+                                    </a>`;
+                                            }).join('');
+                                        dmContainer.innerHTML = dmHtml;
+                                    }
+
+                                    // 2. Update sidebar container if it exists (for non-discussion pages)
+                                    const sidebarContainer = document.getElementById('channelListContainer');
+                                    if (sidebarContainer) {
+                                        const html = channels.map(c => {
+                                            const isActive = currentPath === `/chat/${c.id}`;
+                                            const icon = c.channel_type === 'dm' ? '🔒' : '#';
+                                            const displayName = c.channel_type === 'dm' ? (c.other_user_name || 'Direct Message') : c.name;
+                                            return `
+                                <a href="/chat/${c.id}" class="nav-link ${isActive ? 'active' : ''}">
+                                    <span class="nav-icon">${icon}</span> ${displayName}
+                                </a>`;
+                                        }).join('');
+
+                                        const createBtn = `
+                            <button onclick="openModal('createChannelModal')" class="nav-link" style="color: var(--text-muted); border: 1px dashed var(--border); justify-content: center;">
+                                + New Channel
+                            </button>`;
+
+                                        sidebarContainer.innerHTML = html + createBtn;
+                                    }
+                                });
+                        }
+
+                        window.updateMentionPanel = function (mentions) {
+                            const toggleBtn = document.getElementById('mentionToggle');
+                            const badge = document.getElementById('mentionBadge');
+                            const list = document.getElementById('mentionList');
+
+                            if (!toggleBtn || !badge || !list) return;
+
+                            // Always show the toggle button
+                            toggleBtn.style.display = 'flex';
+
+                            if (mentions.length > 0) {
+                                badge.innerText = mentions.length;
+                                badge.style.display = 'flex';
+
+                                list.innerHTML = mentions.map(m => `
+                        <div class="mention-item" onclick="readNotification(${m.id}, ${m.channel_id}, ${m.message_id})">
+                            <div class="mention-item-header">
+                                <span class="mention-author">${m.author_name}</span>
+                                <span class="mention-time">${m.created_at}</span>
+                            </div>
+                            <div class="mention-preview">${m.content}</div>
+                        </div>
+                    `).join('');
+                            } else {
+                                badge.style.display = 'none';
+                                list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">No new mentions</div>';
+                            }
+                        };
+
+                        window.toggleMentionPanel = function () {
+                            const panel = document.getElementById('mentionPanel');
+                            if (panel) panel.classList.toggle('open');
+                        };
+
+                        window.readNotification = function (notifId, channelId, msgId) {
+                            fetch(`/api/notifications/${notifId}/read`, { method: 'POST' })
+                                .then(() => {
+                                    // If we are already on the correct channel page
+                                    if (window.location.pathname === `/chat/${channelId}`) {
+                                        // Just scroll to message if it exists, logic handled by discussion.html
+                                        if (window.scrollToMessage) window.scrollToMessage(msgId);
+                                        checkNotifications(); // Refresh panel
+                                        toggleMentionPanel(); // Close panel
+                                    } else {
+                                        // Redirect to channel
+                                        window.location.href = `/chat/${channelId}?highlight=${msgId}`;
+                                    }
+                                });
+                        };
+
+        }) ();
+                    </script>
+                    <a href="{{ url_for('views.dashboard') }}"
+                        class="nav-link {% if request.endpoint == 'views.dashboard' %}active{% endif %}">
+                        <span class="nav-icon">📊</span> Dashboard
+                    </a>
+                    <a href="{{ url_for('views.discussion') }}"
+                        class="nav-link {% if request.endpoint == 'views.discussion' %}active{% endif %}">
+                        <span class="nav-icon">💬</span> Discussion
+                    </a>
+                    <div id="channelListContainer">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Apps</div>
+                    <a href="{{ url_for('views.resources') }}"
+                        class="nav-link {% if request.endpoint == 'views.resources' %}active{% endif %}">
+                        <span class="nav-icon">📊</span> Resources
+                    </a>
+                    <a href="{{ url_for('views.sheets') }}"
+                        class="nav-link {% if request.endpoint in ['views.sheets', 'views.sheet_view'] %}active{% endif %}">
+                        <span class="nav-icon">📊</span> Sheets
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Organization</div>
+                    <a href="{{ url_for('views.members') }}"
+                        class="nav-link {% if request.endpoint in ['views.members', 'views.member_profile'] %}active{% endif %}">
+                        <span class="nav-icon">👥</span> Members
+                    </a>
+                    <a href="{{ url_for('views.tasks') }}"
+                        class="nav-link {% if request.endpoint == 'views.tasks' %}active{% endif %}">
+                        <span class="nav-icon">✅</span> Tasks
+                    </a>
+                    <a href="{{ url_for('views.calendar_view') }}"
+                        class="nav-link {% if request.endpoint == 'views.calendar_view' %}active{% endif %}">
+                        <span class="nav-icon">📅</span> Calendar
+                    </a>
+                    
+                    {% if current_user.role in ['jsec', 'coordinator'] %}
+                    <a href="{{ url_for('views.analytics') }}"
+                        class="nav-link {% if request.endpoint == 'views.analytics' %}active{% endif %}">
+                        <span class="nav-icon">📈</span> Analytics
+                    </a>
+                    {% endif %}
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-mini-profile">
+                    <div class="user-avatar" style="background-color: {{ current_user.avatar_color }}">
+                        {{ current_user.name[0] | upper }}
+                    </div>
+                    <div class="user-info">
+                        <div class="user-name">{{ current_user.name }}</div>
+                        <div class="user-role">{{ current_user.role | title }}</div>
+                    </div>
+                    <div class="user-actions" style="margin-left: auto; display: flex; gap: 4px;">
+                        <button onclick="openChangePasswordModal()" title="Change Password" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:16px;">⚙</button>
+                        <a href="{{ url_for('auth.logout') }}" title="Logout" style="color: var(--red); text-decoration: none; font-size: 16px;">⏻</a>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="topbar">
+                <div class="d-flex align-center gap-2">
+                    <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
+                    <h1 class="topbar-title">{% block page_title %}Dashboard{% endblock %}</h1>
+                </div>
+                <div class="topbar-actions">
+                    <span class="profile-id">{{ current_user.unique_id }}</span>
+                    <span class="profile-role role-{{ current_user.role }}">{{ current_user.role }}</span>
+                </div>
+            </header>
+
+            <div class="page-content">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+    {% else %}
+    {% block fullpage %}{% endblock %}
+    {% endif %}
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-messages">
+        {% for category, message in messages %}
+        <div class="flash-msg {{ category }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        function toggleSidebar() {
+            document.querySelector('.sidebar').classList.toggle('open');
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.js.iife.js"></script>
+    <script>
+        // Interactive Tour Logic
+        document.addEventListener('DOMContentLoaded', () => {
+            const hasSeenTour = {{ 'true' if current_user and current_user.has_seen_tour else 'false' }};
+            const userId = {{ session.get('user_id') or 'null' }};
+            
+            if (userId && !hasSeenTour) {
+                // Initialize Driver.js
+                const driver = window.driver.js.driver;
+                const tour = driver({
+                    showProgress: true,
+                    steps: [
+                        { element: '.sidebar-logo', popover: { title: 'Welcome to IIC Club', description: 'This is your new management portal. Let\'s take a quick tour!' } },
+                        { element: '.sidebar-nav', popover: { title: 'Navigation', description: 'Access all your apps here: Discussion, Tasks, Calendar, and more.' } },
+                        { element: '.topbar-actions', popover: { title: 'Profile & Role', description: 'See your unique ID and role status here.' } },
+                        { element: '#mentionToggle', popover: { title: 'Notifications', description: 'Check here for mentions and important updates.' } },
+                    ],
+                    onDestroyed: () => {
+                        // Mark as seen on completion or skip
+                        fetch('/api/tour/complete', { method: 'POST' });
+                    }
+                });
+                
+                // Start tour
+                tour.drive();
+            }
+        });
+        
+        // Manual Tour Trigger
+        window.startTour = function() {
+            const driver = window.driver.js.driver;
+            const tour = driver({
+                showProgress: true,
+                steps: [
+                    { element: '.sidebar-logo', popover: { title: 'Welcome to IIC Club', description: 'This is your management portal.' } },
+                    { element: '.sidebar-nav', popover: { title: 'Navigation', description: 'Access all your apps here.' } },
+                    { element: '.topbar-actions', popover: { title: 'Profile & Role', description: 'See your details here.' } },
+                    { element: '#mentionToggle', popover: { title: 'Notifications', description: 'Check here for updates.' } },
+                ]
+            });
+            tour.drive();
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+    <!-- Change Password Modal -->
+    <div class="modal-overlay" id="changePasswordModal">
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2 class="modal-title">Change Password</h2>
+                <button class="modal-close" onclick="closeModal('changePasswordModal')">✕</button>
+            </div>
+            <form id="changePasswordForm" onsubmit="handleChangePassword(event)">
+                <div class="form-group">
+                    <label class="form-label">Current Password</label>
+                    <input type="password" name="current_password" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">New Password</label>
+                    <input type="password" name="new_password" class="form-control" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Confirm New Password</label>
+                    <input type="password" name="confirm_password" class="form-control" required minlength="6">
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Update Password</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openChangePasswordModal() {
+            document.getElementById('changePasswordModal').style.display = 'flex';
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        // Close modal on outside click (Global)
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal-overlay')) {
+                event.target.style.display = "none";
+            }
+        }
+
+        function handleChangePassword(e) {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            const newPass = fd.get('new_password');
+            const confirmPass = fd.get('confirm_password');
+
+            if (newPass !== confirmPass) {
+                alert("New passwords do not match!");
+                return;
+            }
+
+            fetch('/change-password', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(Object.fromEntries(fd))
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    alert('Password updated successfully!');
+                    closeModal('changePasswordModal');
+                    e.target.reset();
+                } else {
+                    alert(data.error || 'Failed to update password');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block title %}{{ event.title }} — IIC Club{% endblock %}
+{% block page_title %}Event Details{% endblock %}
+
+{% block head %}
+<style>
+    .event-details-grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 1.5rem;
+    }
+    .span-12 { grid-column: span 12; }
+    
+    @media (max-width: 768px) {
+        .event-details-grid { display: flex; flex-direction: column; gap: 1rem; }
+        .span-12 { width: 100%; }
+        /* Adjust list grid for mobile */
+        .list-group { grid-template-columns: 1fr !important; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="event-details-grid">
+    <!-- Event Info Card -->
+    <div class="card span-12">
+        <div class="card-header">
+            <div>
+                <h2 style="margin:0;">{{ event.title }}</h2>
+                <div style="color:var(--text-dim); margin-top:0.25rem;">
+                    📅 {{ event.event_date.strftime('%A, %b %d, %Y') }} 
+                    {% if event.event_time %} • ⏰ {{ event.event_time }} {% endif %}
+                    {% if event.location %} • 📍 {{ event.location }} {% endif %}
+                </div>
+            </div>
+            {% if current_user.can_manage_calendar() %}
+            <form action="{{ url_for('views.delete_event', event_id=event.id) }}" method="POST" onsubmit="return confirm('Delete this event?');">
+                <button type="submit" class="btn btn-sm" style="background:var(--red); color:white;">Delete Event</button>
+            </form>
+            {% endif %}
+        </div>
+        <div style="margin-top:1rem; line-height:1.6;">
+            {{ event.description or 'No description provided.' }}
+        </div>
+    </div>
+
+    <!-- MO and Attendance Grid -->
+    {% if current_user.can_manage_calendar() %}
+    
+    <!-- Attendance -->
+    <div class="card span-12" style="max-height: 500px; overflow-y: auto;">
+        <div class="card-header" style="position:sticky; top:0; background:var(--surface); z-index:10; padding-bottom:1rem; border-bottom:1px solid var(--border);">
+            <h3>🙋 Attendance</h3>
+            <span class="badge badge-ppt">{{ all_members|length }} Members</span>
+        </div>
+        <form method="POST">
+            <input type="hidden" name="attendance_submitted" value="true">
+            <div class="list-group" style="margin-top:1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem;">
+                {% for member in all_members %}
+                <div class="list-item" style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem; border: 1px solid var(--border); border-radius: var(--radius);">
+                    <div style="display:flex; align-items:center; gap:0.75rem;">
+                        <div class="profile-avatar-sm" style="background-color: {{ member.avatar_color }}; width:32px; height:32px; font-size:12px;">
+                            {{ member.name[0]|upper }}
+                        </div>
+                        <div>
+                            <div style="font-weight:500; font-size:0.9rem;">{{ member.name }}</div>
+                            <div style="font-size:0.75rem; color:var(--text-dim);">{{ member.role }}</div>
+                        </div>
+                    </div>
+                    <div>
+                        {% set status = attendance_map.get(member.id) %}
+                        {% if status == 'present' %}
+                            {% set status_color = 'var(--green)' %}
+                        {% elif status == 'absent' %}
+                            {% set status_color = 'var(--red)' %}
+                        {% elif status == 'excused' %}
+                            {% set status_color = 'var(--yellow)' %}
+                        {% else %}
+                            {% set status_color = 'var(--border)' %}
+                        {% endif %}
+                        <select name="status_{{ member.id }}" class="form-control" 
+                                style="padding:0.25rem; font-size:0.85rem; width:110px; background:var(--bg); border-color:{{ status_color }};">
+                            <option value="">--</option>
+                            <option value="present" {% if status == 'present' %}selected{% endif %}>✅ Present</option>
+                            <option value="absent" {% if status == 'absent' %}selected{% endif %}>❌ Absent</option>
+                            <option value="excused" {% if status == 'excused' %}selected{% endif %}>⚠️ Excused</option>
+                        </select>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div style="position:sticky; bottom:0; background:var(--surface); padding-top:1rem; border-top:1px solid var(--border); text-align:right; margin-top: 1rem;">
+                <button type="submit" class="btn btn-primary">Save Attendance</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Minutes of Meeting (MoM) -->
+    <div class="card span-12">
+        <div class="card-header">
+            <h3>📝 Minutes of Meeting</h3>
+            <span class="badge badge-sheet">Markdown Supported</span>
+        </div>
+        <form method="POST">
+            <textarea name="mom" class="form-control" style="height:400px; font-family:monospace; line-height:1.5;" placeholder="Record meeting notes, decisions, and action items here...">{{ event.mom }}</textarea>
+            <div style="margin-top:1rem; text-align:right;">
+                <button type="submit" class="btn btn-primary">Save Minutes</button>
+            </div>
+        </form>
+    </div>
+
+    {% else %}
+    <!-- View Mode for Non-Admins -->
+    <div class="card span-12">
+        <div class="card-header">
+            <h3>📝 Minutes of Meeting</h3>
+        </div>
+        <div class="markdown-preview" style="padding:1rem; background:var(--bg); border-radius:var(--radius); min-height:200px;">
+            {% if event.mom %}
+                {{ event.mom | replace('\n', '<br>') | safe }}
+            {% else %}
+                <p class="text-dim">Minutes have not been uploaded yet.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

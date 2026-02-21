@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% block title %}Resources — IIC Club{% endblock %}
+{% block page_title %}📁 Shared Resources{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="d-flex justify-between align-center mb-3" style="flex-wrap: wrap; gap: 12px;">
+    <div class="resource-filters">
+        <a href="{{ url_for('views.resources') }}"
+            class="filter-btn {% if not type_filter and not event_filter %}active{% endif %}">All</a>
+        <a href="{{ url_for('views.resources', type='ppt') }}"
+            class="filter-btn {% if type_filter == 'ppt' %}active{% endif %}">📊 PPT</a>
+        <a href="{{ url_for('views.resources', type='sheet') }}"
+            class="filter-btn {% if type_filter == 'sheet' %}active{% endif %}">📗 Sheets</a>
+        <a href="{{ url_for('views.resources', type='link') }}"
+            class="filter-btn {% if type_filter == 'link' %}active{% endif %}">🔗 Links</a>
+        <a href="{{ url_for('views.resources', type='other') }}"
+            class="filter-btn {% if type_filter == 'other' %}active{% endif %}">📎 Other</a>
+
+        <!-- Event Filters -->
+        {% if all_events %}
+        <span style="color: var(--text-muted); margin: 0 6px;">|</span>
+        {% for event in all_events[:5] %}
+        <a href="{{ url_for('views.resources', event=event.id) }}"
+            class="filter-btn {% if event_filter == event.id %}active{% endif %}">📅 {{ event.title }}</a>
+        {% endfor %}
+        {% endif %}
+    </div>
+    <button class="btn btn-primary" onclick="openModal('addResourceModal')">+ Share Resource</button>
+</div>
+
+<!-- Resource List -->
+<div class="resource-list">
+    {% for res in resources %}
+    <div class="resource-item" style="animation-delay: {{ loop.index0 * 0.05 }}s;">
+        <div class="resource-type-icon {{ res.resource_type }}">
+            {% if res.resource_type == 'ppt' %}📊{% elif res.resource_type == 'sheet' %}📗{% elif res.resource_type ==
+            'link' %}🔗{% else %}📎{% endif %}
+        </div>
+        <div class="resource-info">
+            <div class="resource-title">{{ res.title }}</div>
+            {% if res.description %}
+            <div class="resource-desc">{{ res.description }}</div>
+            {% endif %}
+            <div class="resource-meta">
+                Shared by {{ res.shared_by.name }} · {{ res.created_at.strftime('%b %d, %Y') }}
+                <span class="badge badge-{{ res.resource_type }} ml-1">{{ res.resource_type | upper }}</span>
+                {% if res.event %}
+                <span class="badge"
+                    style="background: var(--surface-2); color: var(--blue); border-color: #0a0a2a; margin-left: 4px;">📅
+                    {{ res.event.title }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="resource-actions">
+            <a href="{{ res.url }}" target="_blank" class="btn btn-sm btn-secondary">Open ↗</a>
+            {% if current_user.can_manage_members() %}
+            <form id="deleteRes{{ res.id }}" method="POST"
+                action="{{ url_for('views.delete_resource', res_id=res.id) }}">
+                <button type="button" class="btn btn-sm btn-danger"
+                    onclick="confirmDelete('deleteRes{{ res.id }}', '{{ res.title }}')">🗑️</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if not resources %}
+<div class="empty-state">
+    <div class="empty-icon">📭</div>
+    <p class="empty-text">No resources shared yet. Be the first!</p>
+</div>
+{% endif %}
+
+<!-- Add Resource Modal -->
+<div class="modal-overlay" id="addResourceModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">Share Resource</h2>
+            <button class="modal-close" onclick="closeModal('addResourceModal')">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('views.resources') }}">
+            <div class="form-group">
+                <label class="form-label" for="title">Title *</label>
+                <input type="text" id="title" name="title" class="form-control" placeholder="e.g. IIC Resource"
+                    required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="url">URL / Link *</label>
+                <input type="url" id="url" name="url" class="form-control" placeholder="https://docs.google.com/..."
+                    required>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="resource_type">Type</label>
+                    <select id="resource_type" name="resource_type" class="form-control">
+                        <option value="ppt">📊 PPT / Slides</option>
+                        <option value="sheet">📗 Sheet / Spreadsheet</option>
+                        <option value="link">🔗 Link / Website</option>
+                        <option value="other">📎 Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="event_id">Event (Optional)</label>
+                    <select id="event_id" name="event_id" class="form-control">
+                        <option value="">-- None --</option>
+                        {% for event in all_events %}
+                        <option value="{{ event.id }}">{{ event.title }} ({{ event.event_date.strftime('%b %d') }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="description">Description</label>
+                <textarea id="description" name="description" class="form-control" rows="2"
+                    placeholder="Brief description..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Share Resource</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}Members — IIC Club{% endblock %}
+{% block page_title %}Members{% endblock %}
+
+{% block content %}
+<!-- Search & Filter -->
+<div class="search-bar">
+    <form class="d-flex gap-1 w-100" method="GET" action="{{ url_for('views.members') }}"
+        style="flex-wrap: wrap; gap: 12px;">
+        <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" name="search" class="form-control" placeholder="Search members..." value="{{ search }}">
+        </div>
+        <select name="role" class="form-control" style="width: auto; min-width: 150px;">
+            <option value="">All Roles</option>
+            <option value="jsec" {% if role_filter=='jsec' %}selected{% endif %}>Joint Secretary</option>
+            <option value="coordinator" {% if role_filter=='coordinator' %}selected{% endif %}>Coordinator</option>
+            <option value="member" {% if role_filter=='member' %}selected{% endif %}>Member</option>
+        </select>
+        <button type="submit" class="btn btn-secondary">Filter</button>
+    </form>
+    {% if current_user.can_manage_members() %}
+    <button class="btn btn-primary" onclick="openModal('addMemberModal')">+ Add Member</button>
+    {% endif %}
+</div>
+
+<!-- Members Grid -->
+<div class="members-grid">
+    {% for member in members %}
+    <a href="{{ url_for('views.member_profile', member_id=member.id) }}" class="member-card"
+        style="animation-delay: {{ loop.index0 * 0.05 }}s;">
+        <div class="member-avatar" style="background-color: {{ member.avatar_color }};">
+            {{ member.name[0] | upper }}
+        </div>
+        <div class="member-name">{{ member.name }}</div>
+        <div class="member-id">{{ member.unique_id }}</div>
+        <div class="profile-role role-{{ member.role }}" style="font-size: 11px;">{{ member.role | upper }}</div>
+        {% if member.expertise %}
+        <div class="member-expertise mt-1">🛠️ {{ member.expertise }}</div>
+        {% endif %}
+        {% if member.current_work %}
+        <div class="member-expertise">📌 {{ member.current_work }}</div>
+        {% endif %}
+    </a>
+    {% endfor %}
+</div>
+
+{% if not members %}
+<div class="empty-state">
+    <div class="empty-icon">👻</div>
+    <p class="empty-text">No members found</p>
+</div>
+{% endif %}
+
+<!-- Add Member Modal -->
+{% if current_user.can_manage_members() %}
+<div class="modal-overlay" id="addMemberModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">Add New Member</h2>
+            <button class="modal-close" onclick="closeModal('addMemberModal')">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('views.add_member') }}">
+            <div class="form-group">
+                <label class="form-label" for="name">Full Name *</label>
+                <input type="text" id="name" name="name" class="form-control" placeholder="Enter full name" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="email">Email *</label>
+                <input type="email" id="email" name="email" class="form-control" placeholder="member@email.com"
+                    required>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="role">Role</label>
+                    <select id="role" name="role" class="form-control">
+                        <option value="member">Member</option>
+                        <option value="coordinator">Coordinator</option>
+                        <option value="jsec">Joint Secretary</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <input type="text" id="password" name="password" class="form-control" value="member123"
+                        placeholder="Default: member123">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="expertise">Expertise</label>
+                <input type="text" id="expertise" name="expertise" class="form-control"
+                    placeholder="e.g. Python, Design, ML">
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Add Member</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

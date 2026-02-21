@@ -1,0 +1,190 @@
+{% extends 'base.html' %}
+{% block title %}Analytics — IIC Club{% endblock %}
+{% block page_title %}Analytics Dashboard{% endblock %}
+
+{% block head %}
+<style>
+    .analytics-grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 1.5rem;
+    }
+    .span-12 { grid-column: span 12; }
+    .span-8 { grid-column: span 8; }
+    .span-4 { grid-column: span 4; }
+    .span-6 { grid-column: span 6; }
+
+    @media (max-width: 1024px) {
+        .span-8, .span-4 { grid-column: span 6; }
+    }
+    
+    @media (max-width: 768px) {
+        .analytics-grid { display: flex; flex-direction: column; gap: 1rem; }
+        .span-12, .span-8, .span-4, .span-6 { width: 100%; }
+        
+        /* Fix table overflow on mobile */
+        .card { overflow: hidden; }
+        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        
+        /* Stats grid mobile */
+        .stats-grid { grid-template-columns: 1fr; }
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .stat-card {
+        background: var(--surface-2);
+        padding: 1.25rem;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        display: flex; flex-direction: column; justify-content: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="analytics-grid">
+    <!-- Productivity Section -->
+    <div class="card span-12">
+        <div class="card-header">
+            <h3>Productivity Metrics</h3>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ productivity.completion_rate }}%</div>
+                <div class="stat-label">Completion Rate</div>
+                <div class="progress-bar-bg" style="margin-top:0.5rem;">
+                    <div class="progress-bar-fill" style="width: {{ productivity.completion_rate }}%;"></div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ productivity.tasks_in_review }}</div>
+                <div class="stat-label">Bottleneck (In Review)</div>
+                <span style="font-size:0.75rem; color:var(--text-dim);">Tasks waiting for approval</span>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ productivity.completed_tasks }} / {{ productivity.total_tasks }}</div>
+                <div class="stat-label">Tasks Completed</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Workload Heatmap -->
+    <div class="card span-8">
+        <div class="card-header">
+            <h3>Workload Heatmap</h3>
+            <span class="badge badge-other">Active Tasks</span>
+        </div>
+        <div class="list-group">
+            {% for user in workload %}
+            <div class="list-item" style="display:flex; align-items:center; justify-content:space-between;">
+                <div style="font-weight:500;">{{ user.name }}</div>
+                <div style="display:flex; align-items:center; gap:1rem;">
+                    <div style="text-align:right;">
+                        <span style="font-weight:700; color: {{ 'var(--red)' if user.count > 3 else 'var(--text)' }};">
+                            {{ user.count }}
+                        </span>
+                        <span style="font-size:0.75rem; color:var(--text-dim);">active</span>
+                    </div>
+                    {% if user.count > 3 %}
+                    <span class="badge badge-ppt">High Risk</span>
+                    {% else %}
+                    <span class="badge badge-sheet">Normal</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <p class="empty-text">No active tasks assigned.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Engagement Leaderboard -->
+    <div class="card span-4">
+        <div class="card-header">
+            <h3>Top Contributors</h3>
+        </div>
+        <div class="list-group">
+            {% for user in engagement.leaderboard %}
+            <div class="list-item" style="display:flex; align-items:center; gap:0.75rem;">
+                <div class="profile-avatar-sm" style="background-color: {{ user.avatar_color }}; width:32px; height:32px; font-size:12px;">
+                    {{ user.name[0]|upper }}
+                </div>
+                <div style="flex:1;">
+                    <div style="font-weight:500; font-size:0.875rem;">{{ user.name }}</div>
+                </div>
+                <div style="font-weight:700;">{{ user.count }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Silent Members -->
+    <div class="card span-12">
+        <div class="card-header">
+            <h3>Silent Members Alert ({{ engagement.silent_members_count }})</h3>
+            <span style="font-size:0.75rem; color:var(--text-dim);">Inactive for 30+ days</span>
+        </div>
+        {% if engagement.silent_members %}
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; padding:1rem;">
+            {% for user in engagement.silent_members %}
+            <span class="badge badge-other" style="font-size:0.875rem; padding:0.5rem 0.75rem;">
+                {{ user.name }}
+            </span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-text" style="padding:1rem;">Everyone is active! 🎉</p>
+        {% endif %}
+    </div>
+
+    <!-- Recent Attendance -->
+    <div class="card span-12">
+        <div class="card-header">
+            <h3>Recent Attendance</h3>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table" style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="text-align:left; border-bottom:1px solid var(--border);">
+                        <th style="padding:0.75rem;">Event</th>
+                        <th style="padding:0.75rem;">Date</th>
+                        <th style="padding:0.75rem;">Present</th>
+                        <th style="padding:0.75rem;">Absent</th>
+                        <th style="padding:0.75rem;">Excused</th>
+                        <th style="padding:0.75rem; min-width:150px;">Turnout</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in attendance %}
+                    <tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:0.75rem; font-weight:500;">{{ event.title }}</td>
+                        <td style="padding:0.75rem; color:var(--text-dim);">{{ event.date.strftime('%b %d') }}</td>
+                        <td style="padding:0.75rem; color:var(--green);">{{ event.present }}</td>
+                        <td style="padding:0.75rem; color:var(--red);">{{ event.absent }}</td>
+                        <td style="padding:0.75rem; color:var(--yellow);">{{ event.excused }}</td>
+                        <td style="padding:0.75rem;">
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <div class="progress-bar-bg" style="flex:1; height:6px;">
+                                    <div class="progress-bar-fill" style="width:{{ event.rate }}%; background:var(--blue);"></div>
+                                </div>
+                                <span style="font-size:0.75rem; width:35px; text-align:right;">{{ event.rate|int }}%</span>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="empty-text" style="padding:2rem; text-align:center;">No recent meetings or attendance data.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

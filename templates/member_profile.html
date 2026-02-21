@@ -1,0 +1,484 @@
+{% extends 'base.html' %}
+{% block title %}{{ member.name }} — IIC Club{% endblock %}
+{% block page_title %}Member Profile{% endblock %}
+
+{% block head %}
+<style>
+    .profile-hero {
+        display: flex; align-items: center; gap: 1.5rem;
+        padding: 2rem; position: relative;
+    }
+    .profile-hero-avatar {
+        width: 5rem; height: 5rem; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 2rem; font-weight: 700; color: #fff;
+        flex-shrink: 0; position: relative;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .profile-hero-info { flex: 1; min-width: 0; }
+    .profile-hero-name { font-size: 1.5rem; font-weight: 700; color: #fff; letter-spacing: -0.02em; margin-bottom: 0.25rem; }
+    .profile-hero-id { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 0.5rem; }
+    .profile-hero-bio { font-size: 0.8125rem; color: var(--text-dim); line-height: 1.6; margin-top: 0.5rem; max-width: 40rem; }
+
+    .profile-tags { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.75rem; }
+    .profile-tag {
+        display: inline-flex; align-items: center; gap: 0.25rem;
+        padding: 0.25rem 0.625rem; border-radius: 1rem;
+        font-size: 0.6875rem; font-weight: 500;
+        background: var(--accent-soft); color: var(--primary-light);
+        border: 1px solid rgba(129, 140, 248, 0.15);
+    }
+    .profile-tag.working {
+        background: rgba(52, 211, 153, 0.08); color: var(--green);
+        border-color: rgba(52, 211, 153, 0.15);
+    }
+
+    .profile-stats {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+        gap: 0.75rem; margin-bottom: 1.5rem;
+    }
+    .profile-stat {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius-lg); padding: 1rem; text-align: center;
+        transition: all 0.25s ease;
+    }
+    .profile-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .profile-stat-value { font-size: 1.5rem; font-weight: 700; color: #fff; line-height: 1; }
+    .profile-stat-label { font-size: 0.625rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.375rem; }
+
+    .section-title { font-size: 0.875rem; font-weight: 600; color: #fff; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+    .section-title .badge-count {
+        background: var(--accent-soft); color: var(--primary-light);
+        font-size: 0.625rem; padding: 0.125rem 0.5rem; border-radius: 1rem;
+    }
+
+    .achievement-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.75rem; }
+    .achievement-card {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius-lg); padding: 1rem;
+        transition: all 0.25s ease; position: relative;
+    }
+    .achievement-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--border-hover); }
+    .achievement-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .achievement-title { font-size: 0.8125rem; font-weight: 600; color: #fff; margin-bottom: 0.25rem; }
+    .achievement-desc { font-size: 0.6875rem; color: var(--text-dim); line-height: 1.5; }
+    .achievement-meta { margin-top: 0.5rem; font-size: 0.625rem; color: var(--text-muted); }
+    .achievement-category {
+        position: absolute; top: 0.75rem; right: 0.75rem;
+        font-size: 0.5625rem; text-transform: uppercase; letter-spacing: 0.05em;
+        padding: 0.125rem 0.375rem; border-radius: 0.25rem;
+        background: var(--surface-2); color: var(--text-dim);
+    }
+    .achievement-pending { border-left: 3px solid var(--yellow); }
+    .achievement-actions { display: flex; gap: 0.375rem; margin-top: 0.625rem; }
+
+    .edit-inline {
+        display: none; flex-direction: column; gap: 0.75rem;
+        padding: 1.25rem; background: var(--surface-2); border-radius: var(--radius);
+        margin-top: 0.75rem;
+    }
+    .edit-inline.active { display: flex; }
+    .edit-inline textarea, .edit-inline input {
+        width: 100%; padding: 0.5rem 0.75rem;
+        background: var(--bg); border: 1px solid var(--border);
+        border-radius: var(--radius); color: var(--text);
+        font-family: inherit; font-size: 0.8125rem;
+        transition: all 0.2s ease; outline: none;
+    }
+    .edit-inline textarea:focus, .edit-inline input:focus {
+        border-color: var(--primary); box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .edit-inline label { font-size: 0.6875rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; }
+
+    .task-mini { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); transition: all 0.2s; margin-bottom: 0.5rem; }
+    .task-mini:hover { border-color: var(--border-hover); }
+    .task-mini-status { width: 0.5rem; height: 0.5rem; border-radius: 50%; flex-shrink: 0; }
+    .task-mini-status.done { background: var(--green); }
+    .task-mini-status.in-progress { background: var(--blue); }
+    .task-mini-status.pending { background: var(--text-muted); }
+    .task-mini-status.review { background: var(--yellow); }
+    .task-mini-info { flex: 1; min-width: 0; }
+    .task-mini-title { font-size: 0.8125rem; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .task-mini-due { font-size: 0.625rem; color: var(--text-muted); }
+
+    .add-achievement-form { display: none; background: var(--surface-2); border-radius: var(--radius); padding: 1rem; margin-bottom: 1rem; }
+    .add-achievement-form.active { display: block; }
+    .icon-picker { display: flex; gap: 0.375rem; flex-wrap: wrap; }
+    .icon-picker-item { width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center; border-radius: var(--radius); cursor: pointer; border: 1px solid var(--border); transition: all 0.15s; font-size: 1rem; }
+    .icon-picker-item:hover, .icon-picker-item.selected { border-color: var(--primary); background: var(--accent-soft); }
+
+    @media (max-width: 48rem) {
+        .profile-hero { flex-direction: column; text-align: center; padding: 1.5rem; }
+        .profile-tags { justify-content: center; }
+        .profile-stats { grid-template-columns: repeat(2, 1fr); }
+        .achievement-grid { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Profile Hero -->
+<div class="card profile-hero" style="margin-bottom: 1.5rem;">
+    <div class="profile-hero-avatar" style="background-color: {{ member.avatar_color }};">
+        {{ member.name[0] | upper }}
+    </div>
+    <div class="profile-hero-info">
+        <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+            <h1 class="profile-hero-name">{{ member.name }}</h1>
+            <span class="profile-role role-{{ member.role }}">{{ member.role | upper }}</span>
+        </div>
+        <div class="profile-hero-id">{{ member.unique_id }} · Joined {{ member.joined_at.strftime('%b %Y') }}</div>
+        
+        <p class="profile-hero-bio" id="bioDisplay">{{ member.bio or 'No bio yet' }}</p>
+
+        <!-- Expertise tags -->
+        <div class="profile-tags">
+            {% if member.expertise %}
+                {% for tag in member.expertise.split(',') %}
+                    {% if tag.strip() %}
+                    <span class="profile-tag">{{ tag.strip() }}</span>
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+            {% if member.current_work %}
+            <span class="profile-tag working">🔨 {{ member.current_work }}</span>
+            {% endif %}
+        </div>
+
+        <!-- Edit own profile button -->
+        {% if member.id == current_user.id %}
+        <button class="btn btn-secondary btn-sm" style="margin-top: 0.75rem;" onclick="toggleEditProfile()">✏️ Edit Profile</button>
+        {% endif %}
+
+        <!-- Inline edit form (own profile only) -->
+        {% if member.id == current_user.id %}
+        <div class="edit-inline" id="editProfileForm">
+            <div>
+                <label>Bio</label>
+                <textarea id="editBio" rows="3" placeholder="Tell people about yourself...">{{ member.bio or '' }}</textarea>
+            </div>
+            <div>
+                <label>Expertise (comma-separated tags)</label>
+                <input type="text" id="editExpertise" placeholder="Python, Design, ML..." value="{{ member.expertise or '' }}">
+            </div>
+            <div>
+                <label>Working On</label>
+                <input type="text" id="editWorkingOn" placeholder="What are you working on?" value="{{ member.current_work or '' }}">
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-primary btn-sm" onclick="saveProfile()">Save</button>
+                <button class="btn btn-secondary btn-sm" onclick="toggleEditProfile()">Cancel</button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Admin actions -->
+    {% if current_user.can_manage_members() and member.id != current_user.id %}
+    <div style="position:absolute; top:1rem; right:1rem; display:flex; gap:0.375rem;">
+        <button class="btn btn-secondary btn-sm" onclick="openModal('editMemberModal')">✏️ Edit</button>
+        <form id="deleteMemberForm" method="POST" action="{{ url_for('views.delete_member', member_id=member.id) }}">
+            <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('deleteMemberForm', '{{ member.name }}')">🗑️</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Stats -->
+<div class="profile-stats">
+    <div class="profile-stat">
+        <div class="profile-stat-value">{{ task_stats.total }}</div>
+        <div class="profile-stat-label">Total Tasks</div>
+    </div>
+    <div class="profile-stat">
+        <div class="profile-stat-value" style="color: var(--green);">{{ task_stats.done }}</div>
+        <div class="profile-stat-label">Completed</div>
+    </div>
+    <div class="profile-stat">
+        <div class="profile-stat-value" style="color: var(--blue);">{{ stats.attendance_rate }}%</div>
+        <div class="profile-stat-label">Attendance</div>
+    </div>
+    <div class="profile-stat">
+        <div class="profile-stat-value" style="color: var(--yellow);">{{ approved_achievements | length }}</div>
+        <div class="profile-stat-label">Achievements</div>
+    </div>
+</div>
+
+<!-- Performance Overview (Visible to JSec/Coord and Self) -->
+{% if current_user.can_manage_members() or current_user.id == member.id %}
+<div class="card" style="margin-bottom: 1.5rem; padding: 1.5rem;">
+    <h2 class="section-title" style="margin-bottom: 1rem;">📈 Performance Overview</h2>
+    <div style="display: flex; flex-wrap: wrap; gap: 2rem;">
+        <div style="flex: 1; min-width: 250px;">
+            <div style="display:flex; justify-content:space-between; font-size:0.8125rem; margin-bottom:0.5rem;">
+                <span style="color:var(--text-dim);">Task Completion Rate</span>
+                <span style="font-weight:700;">{{ stats.task_rate }}%</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width: {{ stats.task_rate }}%; background: var(--green);"></div>
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-dim); margin-top:0.5rem;">
+                {{ stats.tasks_completed }} of {{ stats.tasks_assigned }} tasks completed
+            </div>
+        </div>
+        <div style="flex: 1; min-width: 250px;">
+            <div style="display:flex; justify-content:space-between; font-size:0.8125rem; margin-bottom:0.5rem;">
+                <span style="color:var(--text-dim);">Attendance Rate</span>
+                <span style="font-weight:700;">{{ stats.attendance_rate }}%</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width: {{ stats.attendance_rate }}%; background: var(--blue);"></div>
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-dim); margin-top:0.5rem;">
+                Attended {{ stats.events_attended }} of {{ stats.total_events }} events
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Achievements Section -->
+<div style="margin-bottom: 1.5rem;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+        <h2 class="section-title" style="margin-bottom:0;">🏆 Achievements <span class="badge-count">{{ approved_achievements | length }}</span></h2>
+        {% if current_user.can_assign_work() %}
+        <button class="btn btn-primary btn-sm" onclick="toggleAddAchievement()">+ Add Achievement</button>
+        {% endif %}
+    </div>
+
+    <!-- Add Achievement Form (JSEC/Coord only) -->
+    {% if current_user.can_assign_work() %}
+    <div class="add-achievement-form" id="addAchievementForm">
+        <div class="form-group">
+            <label class="form-label">Title</label>
+            <input type="text" id="achTitle" class="form-control" placeholder="e.g. Won Smart India Hackathon">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Description</label>
+            <textarea id="achDesc" class="form-control" rows="2" placeholder="Brief description of the achievement"></textarea>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <select id="achCategory" class="form-control">
+                    <option value="general">General</option>
+                    <option value="hackathon">Hackathon</option>
+                    <option value="project">Project</option>
+                    <option value="leadership">Leadership</option>
+                    <option value="academic">Academic</option>
+                    <option value="contribution">Contribution</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Icon</label>
+                <div class="icon-picker">
+                    <div class="icon-picker-item selected" data-icon="🏆" onclick="selectIcon(this)">🏆</div>
+                    <div class="icon-picker-item" data-icon="⭐" onclick="selectIcon(this)">⭐</div>
+                    <div class="icon-picker-item" data-icon="🎯" onclick="selectIcon(this)">🎯</div>
+                    <div class="icon-picker-item" data-icon="🚀" onclick="selectIcon(this)">🚀</div>
+                    <div class="icon-picker-item" data-icon="💡" onclick="selectIcon(this)">💡</div>
+                    <div class="icon-picker-item" data-icon="🎓" onclick="selectIcon(this)">🎓</div>
+                    <div class="icon-picker-item" data-icon="🔬" onclick="selectIcon(this)">🔬</div>
+                    <div class="icon-picker-item" data-icon="🏅" onclick="selectIcon(this)">🏅</div>
+                </div>
+            </div>
+        </div>
+        <div style="display:flex; gap:0.5rem;">
+            <button class="btn btn-primary btn-sm" onclick="submitAchievement()">Add Achievement</button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleAddAchievement()">Cancel</button>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if approved_achievements %}
+    <div class="achievement-grid">
+        {% for a in approved_achievements %}
+        <div class="achievement-card">
+            <span class="achievement-category">{{ a.category }}</span>
+            <div class="achievement-icon">{{ a.icon }}</div>
+            <div class="achievement-title">{{ a.title }}</div>
+            <div class="achievement-desc">{{ a.description }}</div>
+            <div class="achievement-meta">Awarded by {{ a.awarder.name }} · {{ a.created_at.strftime('%b %d, %Y') }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card" style="text-align:center; padding:2rem;">
+        <div style="font-size:2rem; margin-bottom:0.5rem;">🏆</div>
+        <p style="color: var(--text-dim); font-size: 0.8125rem;">No achievements yet</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Pending Achievements (JSEC review) -->
+{% if pending_achievements and current_user.role == 'jsec' %}
+<div style="margin-bottom: 1.5rem;">
+    <h2 class="section-title">⏳ Pending Review <span class="badge-count">{{ pending_achievements | length }}</span></h2>
+    <div class="achievement-grid">
+        {% for a in pending_achievements %}
+        <div class="achievement-card achievement-pending">
+            <span class="achievement-category">{{ a.category }}</span>
+            <div class="achievement-icon">{{ a.icon }}</div>
+            <div class="achievement-title">{{ a.title }}</div>
+            <div class="achievement-desc">{{ a.description }}</div>
+            <div class="achievement-meta">Added by {{ a.awarder.name }}</div>
+            <div class="achievement-actions">
+                <button class="btn btn-success btn-sm" onclick="reviewAchievement({{ a.id }}, 'approve')">✓ Approve</button>
+                <button class="btn btn-danger btn-sm" onclick="reviewAchievement({{ a.id }}, 'reject')">✗ Reject</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Completed Tasks (Proficiency Showcase) -->
+<div style="margin-bottom: 1.5rem;">
+    <h2 class="section-title">✅ Completed Tasks <span class="badge-count">{{ task_stats.done }}</span></h2>
+    {% set done_tasks = member_tasks | selectattr('status', 'equalto', 'done') | list %}
+    {% if done_tasks %}
+    <div class="achievement-grid">
+        {% for task in done_tasks %}
+        <div class="card" style="border-left: 3px solid var(--green); padding: 1rem;">
+            <div style="display:flex; align-items:start; gap:0.625rem;">
+                <span style="color:var(--green); font-size:1rem; flex-shrink:0;">✓</span>
+                <div style="flex:1; min-width:0;">
+                    <div style="font-size:0.8125rem; font-weight:600; color:#fff; margin-bottom:0.25rem;">{{ task.title }}</div>
+                    {% if task.description %}
+                    <div style="font-size:0.6875rem; color:var(--text-dim); line-height:1.5;">{{ task.description[:120] }}{% if task.description|length > 120 %}...{% endif %}</div>
+                    {% endif %}
+                    <div style="font-size:0.625rem; color:var(--text-muted); margin-top:0.375rem;">
+                        {% if task.tags %}
+                            {% for tag in task.tags.split(',') %}
+                                {% if tag.strip() %}
+                                <span class="profile-tag" style="font-size:0.5625rem; padding:0.125rem 0.375rem;">{{ tag.strip() }}</span>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                        {% if task.due_date %} · Completed by {{ task.due_date.strftime('%b %d') }}{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card" style="text-align:center; padding:1.5rem;">
+        <p style="color: var(--text-dim); font-size: 0.8125rem;">No completed tasks yet</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Active Tasks -->
+<div style="margin-bottom: 1.5rem;">
+    {% set active_tasks = member_tasks | rejectattr('status', 'equalto', 'done') | list %}
+    <h2 class="section-title">📋 Active Tasks <span class="badge-count">{{ active_tasks | length }}</span></h2>
+    {% if active_tasks %}
+        {% for task in active_tasks %}
+        <div class="task-mini">
+            <div class="task-mini-status {{ task.status }}"></div>
+            <div class="task-mini-info">
+                <div class="task-mini-title">{{ task.title }}</div>
+                {% if task.due_date %}
+                <div class="task-mini-due">Due {{ task.due_date.strftime('%b %d, %Y') }}</div>
+                {% endif %}
+            </div>
+            <span class="badge badge-{{ task.status }}" style="font-size:0.625rem;">{{ task.status }}</span>
+        </div>
+        {% endfor %}
+    {% else %}
+    <div class="card" style="text-align:center; padding: 1.5rem;">
+        <p style="color: var(--text-dim); font-size: 0.8125rem;">No active tasks</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Edit Member Modal (JSec only) -->
+{% if current_user.can_manage_members() %}
+<div class="modal-overlay" id="editMemberModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">Edit Member</h2>
+            <button class="modal-close" onclick="closeModal('editMemberModal')">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('views.edit_member', member_id=member.id) }}">
+            <div class="form-group">
+                <label class="form-label" for="name">Name</label>
+                <input type="text" id="name" name="name" class="form-control" value="{{ member.name }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="role">Role</label>
+                <select id="role" name="role" class="form-control">
+                    <option value="member" {% if member.role=='member' %}selected{% endif %}>Member</option>
+                    <option value="coordinator" {% if member.role=='coordinator' %}selected{% endif %}>Coordinator</option>
+                    <option value="jsec" {% if member.role=='jsec' %}selected{% endif %}>Joint Secretary</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Save Changes</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function toggleEditProfile() {
+    document.getElementById('editProfileForm').classList.toggle('active');
+}
+
+function saveProfile() {
+    const data = {
+        bio: document.getElementById('editBio').value,
+        expertise: document.getElementById('editExpertise').value,
+        current_work: document.getElementById('editWorkingOn').value
+    };
+    fetch('/api/profile/update', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    }).then(r => r.json()).then(d => {
+        if (d.success) location.reload();
+        else alert(d.error || 'Failed to save');
+    });
+}
+
+let selectedIcon = '🏆';
+function selectIcon(el) {
+    document.querySelectorAll('.icon-picker-item').forEach(i => i.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedIcon = el.dataset.icon;
+}
+
+function toggleAddAchievement() {
+    document.getElementById('addAchievementForm').classList.toggle('active');
+}
+
+function submitAchievement() {
+    const data = {
+        title: document.getElementById('achTitle').value,
+        description: document.getElementById('achDesc').value,
+        category: document.getElementById('achCategory').value,
+        icon: selectedIcon
+    };
+    if (!data.title) { alert('Title is required'); return; }
+    fetch('/api/achievements/{{ member.id }}/add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    }).then(r => r.json()).then(d => {
+        if (d.success) location.reload();
+        else alert(d.error || 'Failed to add');
+    });
+}
+
+function reviewAchievement(id, action) {
+    fetch(`/api/achievements/${id}/review`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action})
+    }).then(r => r.json()).then(d => {
+        if (d.success) location.reload();
+        else alert(d.error || 'Failed');
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — IIC Club{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats Row -->
+<div class="stat-cards">
+    <div class="stat-card">
+        <div class="stat-icon purple">👥</div>
+        <div>
+            <div class="stat-value">{{ total_members }}</div>
+            <div class="stat-label">Total Members</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon orange">✅</div>
+        <div>
+            <div class="stat-value">{{ my_tasks | length }}</div>
+            <div class="stat-label">My Tasks</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon blue">📅</div>
+        <div>
+            <div class="stat-value">{{ upcoming_events | length }}</div>
+            <div class="stat-label">Upcoming Events</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon green">📊</div>
+        <div>
+            <div class="stat-value">{{ recent_resources | length }}</div>
+            <div class="stat-label">Resources</div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <!-- Profile Card -->
+    <div class="card profile-card">
+        <div class="profile-avatar" style="background-color: {{ user.avatar_color }};">
+            {{ user.name[0] | upper }}
+        </div>
+        <h2 class="profile-name">{{ user.name }}</h2>
+        <div class="profile-id">{{ user.unique_id }}</div>
+        <div class="profile-role role-{{ user.role }} mb-2">{{ user.role | upper }}</div>
+
+        <ul class="info-list">
+            <li>
+                <span class="info-label">Expertise</span>
+                <span class="info-value">{{ user.expertise or 'Not set' }}</span>
+            </li>
+            <li>
+                <span class="info-label">Working On</span>
+                <span class="info-value">{{ user.current_work or 'Nothing currently' }}</span>
+            </li>
+            <li>
+                <span class="info-label">Joined</span>
+                <span class="info-value">{{ user.joined_at.strftime('%b %d, %Y') }}</span>
+            </li>
+        </ul>
+
+        <button class="btn btn-secondary mt-2 w-100" onclick="openModal('editProfileModal')">✏️ Edit Profile</button>
+    </div>
+
+    <!-- My Tasks -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📋 My Tasks</h3>
+            <a href="{{ url_for('views.tasks') }}" class="btn btn-sm btn-secondary">View All</a>
+        </div>
+        {% if my_tasks %}
+        {% for task in my_tasks[:5] %}
+        <div class="task-card">
+            <div class="task-card-title">{{ task.title }}</div>
+            <div class="task-card-desc">{{ task.description[:80] }}{% if task.description | length > 80 %}...{% endif %}
+            </div>
+            <div class="task-card-footer">
+                <span class="badge badge-{{ task.status }}">{{ task.status }}</span>
+                {% if task.due_date %}
+                <span class="task-due {% if task.due_date < today %}overdue{% endif %}">Due: {{
+                    task.due_date.strftime('%b %d') }}</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">🎉</div>
+            <p class="empty-text">No tasks assigned to you!</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Upcoming Events -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📅 Upcoming Events</h3>
+            <a href="{{ url_for('views.calendar_view') }}" class="btn btn-sm btn-secondary">Calendar</a>
+        </div>
+        {% if upcoming_events %}
+        {% for event in upcoming_events %}
+        <div class="event-item" style="border: none; padding: 10px 0;">
+            <div class="event-date-badge">
+                <span class="event-day">{{ event.event_date.strftime('%d') }}</span>
+                <span class="event-month-short">{{ event.event_date.strftime('%b') }}</span>
+            </div>
+            <div class="event-info">
+                <div class="event-title">{{ event.title }}</div>
+                <div class="event-detail">{{ event.event_time }}{% if event.location %} · {{ event.location }}{% endif
+                    %}</div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <p class="empty-text">No upcoming events</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Recent Discussion -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">💬 Recent Chat</h3>
+            <a href="{{ url_for('views.discussion') }}" class="btn btn-sm btn-secondary">Open Chat</a>
+        </div>
+        {% if recent_messages %}
+        {% for msg in recent_messages %}
+        <div class="d-flex gap-1 mb-1" style="align-items: flex-start;">
+            <div class="task-assignee-avatar"
+                style="background-color: {{ msg.author.avatar_color }}; width: 28px; height: 28px; font-size: 11px; flex-shrink: 0;">
+                {{ msg.author.name[0] | upper }}
+            </div>
+            <div>
+                <div style="font-size: 11px; font-weight: 600; color: var(--text-dim);">{% if msg.channel.channel_type
+                    == 'dm' %}DM{% else %}#{{ msg.channel.name }}{% endif %} · {{ msg.author.name }}</div>
+                <div style="font-size: 13px; color: var(--text-secondary);">{{ msg.content[:60] }}{% if msg.content |
+                    length > 60 %}...{% endif %}</div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">🤫</div>
+            <p class="empty-text">No messages yet</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Edit Profile Modal -->
+<div class="modal-overlay" id="editProfileModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">Edit Profile</h2>
+            <button class="modal-close" onclick="closeModal('editProfileModal')">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('views.update_profile') }}">
+            <div class="form-group">
+                <label class="form-label" for="profile_name">Display Name</label>
+                <input type="text" id="profile_name" name="name" class="form-control" value="{{ user.name }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="expertise">Expertise</label>
+                <input type="text" id="expertise" name="expertise" class="form-control" value="{{ user.expertise }}"
+                    placeholder="e.g. Web Dev, ML, Design">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="current_work">Currently Working On</label>
+                <input type="text" id="current_work" name="current_work" class="form-control"
+                    value="{{ user.current_work }}" placeholder="e.g. Building the club website">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="bio">Bio</label>
+                <textarea id="bio" name="bio" class="form-control" rows="3"
+                    placeholder="Tell us about yourself...">{{ user.bio }}</textarea>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Save Changes</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

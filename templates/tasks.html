@@ -1,0 +1,534 @@
+{% extends 'base.html' %}
+{% block title %}Tasks — IIC Club{% endblock %}
+{% block page_title %}✅ Task Board{% endblock %}
+
+{% block content %}
+<style>
+    /* Tabs */
+    .tabs-nav { display: flex; gap: 20px; border-bottom: 2px solid var(--border); margin-bottom: 20px; }
+    .tab-btn { 
+        padding: 10px 4px; background: none; border: none; font-size: 14px; font-weight: 500; 
+        color: var(--text-muted); cursor: pointer; position: relative; transition: color 0.2s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--primary); font-weight: 600; }
+    .tab-btn.active::after { 
+        content: ''; position: absolute; bottom: -2px; left: 0; width: 100%; height: 2px; background: var(--primary); 
+    }
+    .tab-pane { display: none; animation: fadeIn 0.3s ease; }
+    .tab-pane.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Task Cards & Board */
+    .tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .kanban-board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; overflow-x: auto; padding-bottom: 20px; }
+    @media (max-width: 1000px) { .kanban-board { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { .kanban-board { grid-template-columns: 1fr; } }
+    
+    /* Reuse existing card styles but ensure they are here */
+    .task-card { 
+        background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+        cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; position: relative; 
+    }
+    .task-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-color: var(--primary); }
+    
+    .priority-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+    .priority-high { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .priority-medium { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .priority-low { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+    
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .status-pending { background: var(--text-muted); }
+    .status-in-progress { background: var(--blue); }
+    .status-review { background: var(--yellow); }
+    .status-done { background: var(--green); }
+
+    /* Audit Log in Modal */
+    .audit-log-list { max-height: 200px; overflow-y: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+    .log-entry { font-size: 11px; padding: 4px 0; border-bottom: 1px solid var(--border); color: var(--text-dim); }
+    .log-entry:last-child { border-bottom: none; }
+    .log-time { color: var(--text-muted); font-size: 10px; margin-right: 6px; }
+</style>
+
+<!-- Header Actions -->
+<div class="d-flex justify-between align-center mb-3">
+    <div></div> <!-- Spacer -->
+    {% if current_user.can_assign_work() %}
+    <button class="btn btn-primary" onclick="openCreateModal()">+ Create Task</button>
+    {% endif %}
+</div>
+
+<!-- Tabs Navigation -->
+<div class="tabs-nav">
+    <button class="tab-btn active" onclick="switchTab('marketplace')">Marketplace</button>
+    <button class="tab-btn" onclick="switchTab('mytasks')">My Tasks</button>
+    {% if current_user.can_assign_work() %}
+    <button class="tab-btn" onclick="switchTab('management')">Management Board</button>
+    <button class="tab-btn" onclick="switchTab('pending')">Pending Approval</button>
+    {% endif %}
+</div>
+
+<!-- 1. Marketplace Tab -->
+<div id="tab-marketplace" class="tab-pane active">
+    <div class="p-3 mb-3" style="background: var(--surface-2); border-radius: 8px; border-left: 4px solid var(--yellow);">
+        <h4 style="font-size:14px; margin:0 0 4px 0;">🎯 Opportunity Board</h4>
+        <p style="font-size:12px; margin:0; color:var(--text-dim);">Pick up tasks that are open to everyone. Claiming a task auto-starts it.</p>
+    </div>
+    <div id="marketplace-grid" class="tasks-grid"></div>
+</div>
+
+<!-- 2. My Tasks Tab -->
+<div id="tab-mytasks" class="tab-pane">
+    <div id="mytasks-grid" class="tasks-grid"></div>
+</div>
+
+<!-- 3. Management Tab (Admins) -->
+{% if current_user.can_assign_work() %}
+<div id="tab-management" class="tab-pane">
+    <!-- Kanban Board -->
+    <div class="kanban-board" id="mgmt-board"></div>
+</div>
+{% endif %}
+
+<!-- 4. Pending Approval Tab (Admins) -->
+{% if current_user.can_assign_work() %}
+<div id="tab-pending" class="tab-pane">
+    <div id="pending-grid" class="tasks-grid"></div>
+</div>
+{% endif %}
+
+<!-- Create Task Modal -->
+<div class="modal-overlay" id="createTaskModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">Create New Task</h2>
+            <button class="modal-close" onclick="closeModal('createTaskModal')">✕</button>
+        </div>
+        <form id="createTaskForm" onsubmit="handleCreateTask(event)">
+            <div class="form-group">
+                <label class="form-label">Title</label>
+                <input type="text" name="title" class="form-control" required placeholder="Task title">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea name="description" class="form-control" rows="3" placeholder="Details..."></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <select name="priority" class="form-control">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Due Date</label>
+                    <input type="date" name="due_date" class="form-control">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="d-flex align-center gap-1" style="cursor: pointer;">
+                    <input type="checkbox" name="is_open" id="isOpenCheck" onchange="toggleOpenTask()" style="width: auto;">
+                    <span style="font-size: 13px;">Open Task (Anyone can claim)</span>
+                </label>
+            </div>
+
+            <div class="form-group" id="maxParticipantsGroup" style="display:none;">
+                <label class="form-label">Max Participants</label>
+                <input type="number" name="max_participants" class="form-control" placeholder="1">
+            </div>
+
+            <div class="form-group" id="assignGroup">
+                <label class="form-label">Assign To</label>
+                <select name="assignee_ids" class="form-control" multiple style="height: 100px;">
+                    {% for m in members %}
+                    <option value="{{ m.id }}">{{ m.name }} ({{ m.role }})</option>
+                    {% endfor %}
+                </select>
+                <small class="text-muted">Hold Ctrl to select multiple</small>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">Create Task</button>
+        </form>
+    </div>
+</div>
+
+<!-- Task Detail Modal -->
+<div class="modal-overlay" id="taskDetailModal">
+    <div class="modal" style="max-width: 600px;">
+        <div class="modal-header">
+            <div class="d-flex align-center gap-2">
+                <div id="detailPriorityBadge" class="priority-badge"></div>
+                <div id="detailStatusDot" class="status-dot"></div>
+                <h2 class="modal-title" id="detailTitle">Task Title</h2>
+            </div>
+            <button class="modal-close" onclick="closeModal('taskDetailModal')">✕</button>
+        </div>
+        
+        <div class="task-detail-meta">
+             <div class="meta-item">📅 <span id="detailDueDate"></span></div>
+             <div class="meta-item">👤 <span id="detailAssignees"></span></div>
+        </div>
+        
+        <div class="form-group">
+            <p id="detailDesc" style="white-space: pre-wrap; color: var(--text-dim); line-height: 1.5;"></p>
+        </div>
+        
+        <!-- Resources -->
+        <h4 style="font-size: 14px; margin-bottom: 10px;">Attachments & Resources</h4>
+        <div id="detailResources" class="picker-list mb-2"></div>
+        
+        <!-- Submission Section -->
+        <div class="detail-section" id="submission-section" style="display:none; background:var(--surface-2); padding:12px; border-radius:8px; margin-bottom:15px; border:1px solid var(--border);">
+            <h4 style="font-size:13px; margin:0 0 8px 0;">📤 Submission</h4>
+            <div class="form-group mb-2">
+                <label class="form-label" style="font-size:11px;">Link</label>
+                <input type="url" id="detailSubmissionLink" class="form-control form-control-sm" placeholder="https://..." onblur="saveSubmission()">
+            </div>
+            <div class="form-group mb-1">
+                <label class="form-label" style="font-size:11px;">Notes</label>
+                <textarea id="detailSubmissionNotes" class="form-control form-control-sm" rows="2" placeholder="Notes..." onblur="saveSubmission()"></textarea>
+            </div>
+            <div style="text-align:right; font-size:10px; color:var(--text-muted); height:14px;" id="saveStatus"></div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="d-flex gap-2 mb-3" id="detailActions">
+            <!-- Populated by JS -->
+        </div>
+        
+        <!-- Hidden ID -->
+        <input type="hidden" id="detailId">
+
+        <hr style="border:0; border-top:1px solid var(--border); margin: 15px 0;">
+
+        <h4 style="font-size: 14px; margin-bottom: 10px;">Audit Log</h4>
+        <div class="audit-log-list" id="detailAuditLog">
+            <!-- Logs -->
+        </div>
+
+        {% if current_user.can_assign_work() %}
+        <div class="mt-3 text-right">
+            <button class="btn btn-sm btn-danger" id="btnDeleteTask">Delete Task</button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    let TASKS = [];
+    let CURRENT_TAB = 'marketplace';
+    var CURRENT_USER_ID = Number("{{ current_user.id }}");
+    var IS_ADMIN = "{{ 'true' if current_user.can_assign_work() else 'false' }}" === "true";
+
+    document.addEventListener('DOMContentLoaded', loadTasks);
+
+    function loadTasks() {
+        fetch('/api/tasks').then(r => r.json()).then(data => {
+            TASKS = data;
+            renderCurrentTab();
+        });
+    }
+
+    function switchTab(tab) {
+        CURRENT_TAB = tab;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        
+        // Find the button that was clicked - simpler to iterate based on text or index, 
+        // but here we just re-render to be safe or rely on onclick binding
+        event.target.classList.add('active');
+        document.getElementById(`tab-${tab}`).classList.add('active');
+        
+        renderCurrentTab();
+    }
+
+    function renderCurrentTab() {
+        if (CURRENT_TAB === 'marketplace') renderMarketplace();
+        else if (CURRENT_TAB === 'mytasks') renderMyTasks();
+        else if (CURRENT_TAB === 'management') renderManagement();
+        else if (CURRENT_TAB === 'pending') renderPending();
+    }
+
+    /* ── Renderers ── */
+
+    function renderMarketplace() {
+        const grid = document.getElementById('marketplace-grid');
+        // Open tasks, not full, logic handled in backend? No, API returns all. filtering here.
+        // Marketplace: is_open=True, assignees count < max, AND I am NOT assigned.
+        const items = TASKS.filter(t => t.is_open && !t.is_assigned_to_me && (!t.max_participants || t.assignees.length < t.max_participants));
+        
+        if (items.length === 0) { grid.innerHTML = '<div class="text-muted p-4">No open tasks available.</div>'; return; }
+        
+        grid.innerHTML = items.map(t => renderCard(t, 'Claim')).join('');
+    }
+
+    function renderMyTasks() {
+        const grid = document.getElementById('mytasks-grid');
+        const items = TASKS.filter(t => t.is_assigned_to_me);
+        
+        if (items.length === 0) { grid.innerHTML = '<div class="text-muted p-4">You have no assigned tasks. Check the Marketplace!</div>'; return; }
+        
+        grid.innerHTML = items.map(t => renderCard(t)).join('');
+    }
+
+    function renderManagement() {
+        if(!IS_ADMIN) return;
+        const board = document.getElementById('mgmt-board');
+        const cols = {
+            'pending': [], 'in-progress': [], 'review': [], 'done': []
+        };
+        TASKS.forEach(t => { if(cols[t.status]) cols[t.status].push(t); });
+
+        const titles = {'pending': 'Pending', 'in-progress': 'In Progress', 'review': 'In Review', 'done': 'Completed'};
+        const colors = {'pending': 'pending', 'in-progress': 'in-progress', 'review': 'review', 'done': 'done'};
+
+        board.innerHTML = Object.keys(cols).map(k => `
+            <div class="task-column">
+                <div class="task-column-header">
+                    <span class="task-column-dot status-${k}"></span>
+                    <span class="task-column-title">${titles[k]}</span>
+                    <span class="task-column-count">${cols[k].length}</span>
+                </div>
+                ${cols[k].map(t => renderCard(t)).join('')}
+            </div>
+        `).join('');
+    }
+
+    function renderPending() {
+        if(!IS_ADMIN) return;
+        const grid = document.getElementById('pending-grid');
+        // Tasks in 'review' status
+        const items = TASKS.filter(t => t.status === 'review');
+        
+        if (items.length === 0) { grid.innerHTML = '<div class="text-muted p-4">No tasks waiting for approval.</div>'; return; }
+        grid.innerHTML = items.map(t => renderCard(t, 'Review')).join('');
+    }
+
+    /* ── Components ── */
+    function renderCard(t, actionBtnText) {
+        const priorityColors = { 'high': 'bg-red', 'medium': 'bg-yellow', 'low': 'bg-green' };
+        const priorityClass = priorityColors[t.priority] || 'bg-secondary';
+        
+        // Status-based left border colors
+        const statusColors = {
+            'pending': '#666',
+            'in-progress': '#3b82f6',
+            'review': '#eab308',
+            'done': '#22c55e'
+        };
+        const borderColor = statusColors[t.status] || '#666';
+        let cardStyle = `border-left: 3px solid ${borderColor};`;
+        
+        // Highlight if assigned to me
+        if (t.is_assigned_to_me && t.status !== 'done') {
+            cardStyle += ' background: linear-gradient(to right, rgba(108, 99, 255, 0.05), transparent);';
+        }
+
+        // Status label colors
+        const statusLabelColors = {
+            'pending': 'color:#666;',
+            'in-progress': 'color:#3b82f6;',
+            'review': 'color:#eab308;',
+            'done': 'color:#22c55e;'
+        };
+        const statusStyle = statusLabelColors[t.status] || '';
+
+        const avatars = t.assignees.slice(0,3).map(u=>`<div class="task-assignee-avatar" style="background:${u.avatar_color}" title="${u.name}">${u.name[0]}</div>`).join('');
+        
+        return `
+        <div class="task-card" onclick="openDetail(${t.id})" style="${cardStyle}">
+            <div class="d-flex justify-between mb-2">
+                <span class="priority-badge ${priorityClass}">${t.priority}</span>
+                <span style="font-size:10px; font-weight:600; ${statusStyle}">${t.status.toUpperCase()}</span>
+            </div>
+            <div class="task-card-title mb-1">${t.title}</div>
+            <div class="task-card-desc mb-2" style="font-size:12px; color:var(--text-dim);">${t.description ? t.description.slice(0,60)+'...' : ''}</div>
+            <div class="d-flex justify-between align-center mt-auto">
+                <div class="task-assignee-stack">${avatars}</div>
+                ${t.short_date ? `<div class="task-due">${t.short_date}</div>` : ''}
+            </div>
+            ${actionBtnText ? `<div class="mt-2 text-right"><span class="badge" style="font-size:10px;">${actionBtnText} &rarr;</span></div>` : ''}
+        </div>`;
+    }
+
+    /* ── Detail Modal ── */
+    let currentDetailId = null;
+
+    function openDetail(id) {
+        currentDetailId = id;
+        fetch(`/api/tasks/${id}`).then(r => r.json()).then(t => {
+            document.getElementById('detailId').dataset.id = t.id;
+            document.getElementById('detailTitle').textContent = t.title;
+            document.getElementById('detailDesc').textContent = t.description || 'No description.';
+            document.getElementById('detailDueDate').textContent = t.due_date || 'No due date';
+            document.getElementById('detailPriorityBadge').className = `priority-badge priority-${t.priority}`;
+            document.getElementById('detailPriorityBadge').textContent = t.priority;
+            
+            const assigneeNames = t.assignee_ids.map(u => u.name).join(', ') || 'Unassigned';
+            document.getElementById('detailAssignees').textContent = assigneeNames;
+
+            // Audit Logs
+            const logContainer = document.getElementById('detailAuditLog');
+            logContainer.innerHTML = (t.audit_logs || []).map(l => `
+                <div class="log-entry">
+                    <span class="log-time">${l.time}</span>
+                    <strong style="color:var(--text);">${l.user}</strong>: ${l.details}
+                </div>
+            `).join('') || '<div class="text-muted" style="font-size:11px;">No history.</div>';
+
+            // Actions
+            renderActions(t);
+            if(IS_ADMIN) {
+                 document.getElementById('btnDeleteTask').onclick = () => deleteTask(t.id);
+            }
+
+            document.getElementById('taskDetailModal').style.display = 'flex';
+        });
+    }
+
+    function renderActions(t) {
+        if (t.is_assigned_to_me && t.status !== 'done') {
+            document.getElementById('submission-section').style.display = 'block';
+            document.getElementById('detailSubmissionLink').value = t.submission_link || '';
+            document.getElementById('detailSubmissionNotes').value = t.submission_notes || '';
+        } else {
+            document.getElementById('submission-section').style.display = 'none';
+        }
+
+        const c = document.getElementById('detailActions');
+        c.innerHTML = '';
+
+        const isMine = t.assignee_ids.some(u => u.id === CURRENT_USER_ID);
+        const isOpen = t.is_open;
+
+        // Marketplace Claim (don't block admins from seeing admin actions below)
+        if (isOpen && !isMine && (!t.max_participants || t.assignee_ids.length < t.max_participants)) {
+            c.innerHTML += `<button class="btn btn-primary w-100 mb-2" onclick="claimTask(${t.id})">🙋 Claim Task</button>`;
+            // Don't return here for admins — they should still see admin actions below
+            if (!IS_ADMIN) return;
+        }
+
+        // My Task Actions (assignee-level)
+        if (isMine) {
+            if (t.status === 'pending') {
+                 c.innerHTML += `<button class="btn btn-primary flex-1" onclick="updateStatus(${t.id}, 'in-progress')">▶ Start</button>`;
+                 c.innerHTML += `<button class="btn btn-secondary flex-1" onclick="unclaimTask(${t.id})">✖ Revert (Unclaim)</button>`;
+            } else if (t.status === 'in-progress') {
+                 c.innerHTML += `<button class="btn btn-success flex-1" onclick="updateStatus(${t.id}, 'review')">✅ Submit for Review</button>`;
+                 c.innerHTML += `<button class="btn btn-secondary flex-1" onclick="unclaimTask(${t.id})">✖ Revert</button>`;
+            } else if (t.status === 'review') {
+                 c.innerHTML += `<div class="text-muted w-100 text-center" style="font-size:12px;">Waiting for approval...</div>`;
+            }
+        }
+
+        // ── Admin Actions (always visible for admins, no claim needed) ──
+        if (IS_ADMIN) {
+            if (t.status === 'review') {
+                c.innerHTML += `<hr style="border:0;border-top:1px solid var(--border);margin:8px 0;">`;
+                c.innerHTML += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">Admin Actions</div>`;
+                c.innerHTML += `<button class="btn btn-success flex-1" onclick="updateStatus(${t.id}, 'done')">✔ Approve & Close</button>`;
+                c.innerHTML += `<button class="btn btn-danger flex-1" onclick="updateStatus(${t.id}, 'in-progress')">↩ Reject</button>`;
+            }
+            if (t.status === 'done') {
+                c.innerHTML += `<button class="btn btn-secondary w-100" onclick="updateStatus(${t.id}, 'in-progress')">↩ Re-open</button>`;
+            }
+            if (t.status === 'pending' || t.status === 'in-progress') {
+                c.innerHTML += `<hr style="border:0;border-top:1px solid var(--border);margin:8px 0;">`;
+                c.innerHTML += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">Admin Actions</div>`;
+                c.innerHTML += `<button class="btn btn-success flex-1" onclick="updateStatus(${t.id}, 'done')">✔ Mark as Done</button>`;
+                c.innerHTML += `<button class="btn btn-danger flex-1" onclick="updateStatus(${t.id}, 'review')">📋 Move to Review</button>`;
+            }
+        }
+    }
+
+    /* ── API Calls ── */
+    function claimTask(id) {
+        fetch(`/api/tasks/${id}/claim`, {method:'POST'}).then(r=>r.json()).then(d=>{
+            if(d.error) alert(d.error); else { closeModal('taskDetailModal'); loadTasks(); }
+        });
+    }
+    
+    function unclaimTask(id) {
+        if(!confirm('Are you sure you want to unclaim this task?')) return;
+        fetch(`/api/tasks/${id}/unclaim`, {method:'POST'}).then(r=>r.json()).then(d=>{
+            if(d.error) alert(d.error); else { closeModal('taskDetailModal'); loadTasks(); }
+        });
+    }
+
+    function updateStatus(id, status) {
+        fetch(`/api/tasks/${id}/update`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({status})
+        }).then(r=>r.json()).then(d=>{
+             if(d.error) alert(d.error); else { closeModal('taskDetailModal'); loadTasks(); }
+        });
+    }
+
+    function saveSubmission() {
+        const id = document.getElementById('detailId').dataset.id;
+        const link = document.getElementById('detailSubmissionLink').value;
+        const notes = document.getElementById('detailSubmissionNotes').value;
+        
+        document.getElementById('saveStatus').innerText = 'Saving...';
+        
+        fetch(`/api/tasks/${id}/update`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({submission_link: link, submission_notes: notes})
+        }).then(r=>r.json()).then(d=>{
+            if(d.error) alert(d.error); 
+            else { 
+                document.getElementById('saveStatus').innerText = '✓ Saved';
+                setTimeout(() => document.getElementById('saveStatus').innerText = '', 2000);
+                loadTasks(); // Background reload
+            }
+        });
+    }
+
+    function deleteTask(id) {
+         if(!confirm('Delete this task?')) return;
+         fetch(`/api/tasks/${id}/delete`, {method:'POST'}).then(()=>{ closeModal('taskDetailModal'); window.location.reload(); });
+    }
+
+    /* ── Creation ── */
+    function openCreateModal() { document.getElementById('createTaskModal').style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    function toggleOpenTask() {
+        const isOpen = document.getElementById('isOpenCheck').checked;
+        document.getElementById('maxParticipantsGroup').style.display = isOpen ? 'block' : 'none';
+        document.getElementById('assignGroup').style.display = isOpen ? 'none' : 'block';
+    }
+    function handleCreateTask(e) {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        
+        // Multi-select for assignees
+        const assignee_ids = [...e.target.assignee_ids.selectedOptions].map(o => o.value);
+        
+        const payload = {
+            title: fd.get('title'),
+            description: fd.get('description'),
+            priority: fd.get('priority'),
+            due_date: fd.get('due_date'),
+            tags: fd.get('tags'),
+            is_open: document.getElementById('isOpenCheck').checked,
+            max_participants: fd.get('max_participants'),
+            assignee_ids: assignee_ids
+        };
+
+        fetch('/api/tasks/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(r => r.json()).then(() => {
+            closeModal('createTaskModal');
+            e.target.reset();
+            loadTasks();
+        });
+    }
+
+    window.onclick = function(e) { if(e.target.classList.contains('modal-overlay')) e.target.style.display='none'; }
+</script>
+{% endblock %}
