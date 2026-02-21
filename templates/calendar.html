@@ -63,7 +63,7 @@
         <div class="calendar-event" 
              onclick="window.location.href='{{ url_for('views.event_details', event_id=event.id) }}'"
              title="{{ event.title }}" style="cursor:pointer;">
-            📅 {{ event.title }}
+            📅 <span class="d-none-mobile">{{ event.title }}</span>
         </div>
         {% endfor %}
         {% endif %}
@@ -74,7 +74,7 @@
         <div class="calendar-event task-event" 
              onclick="showEventDetail('task', {{ task.id }}, '{{ task.title|escape }}', '', '', 'Status: {{ task.status }}')"
              title="Task: {{ task.title }}">
-            ✅ {{ task.title }}
+            ✅ <span class="d-none-mobile">{{ task.title }}</span>
         </div>
         {% endfor %}
         {% endif %}

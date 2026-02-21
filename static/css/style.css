@@ -659,13 +659,14 @@ input[type="checkbox"] { accent-color: var(--blue); }
     padding: 0.5rem; text-align: center;
     font-size: 0.625rem; font-weight: 600; text-transform: uppercase;
     color: var(--text-muted); background: var(--surface);
-    letter-spacing: 0.03em;
+    letter-spacing: 0.03em; min-width: 0;
 }
 
 .calendar-day {
     min-height: 5rem; padding: 0.375rem;
     background: var(--surface);
     transition: background 0.15s;
+    min-width: 0; /* Fix CSS Grid horizontal blowout */
 }
 
 .calendar-day:hover { background: var(--surface-2); }
@@ -1180,16 +1181,27 @@ input[type="checkbox"] { accent-color: var(--blue); }
     /* Calendar */
     .calendar-grid { font-size: 0.7rem; }
     .calendar-day { min-height: 3rem; padding: 0.25rem; }
+    .d-none-mobile { display: none !important; }
 
     /* Mention panel */
     #mentionPanel { 
         width: calc(100% - 2rem); left: 1rem; right: 1rem;
         bottom: 4rem; max-height: 70vh; 
     }
-    
-    /* Topbar */
-    .topbar { padding: 0 0.5rem; }
+    /* Topbar & Header */
+    .topbar { padding: 0.5rem; flex-wrap: wrap; gap: 0.5rem; min-height: auto; }
     .topbar-right { gap: 0.375rem; }
+    .topbar-actions { flex-wrap: wrap; justify-content: flex-end; width: 100%; margin-top: 0.25rem; }
+
+    /* Calendar Header */
+    .calendar-header { flex-direction: column; align-items: stretch; gap: 1rem; }
+    .calendar-nav { width: 100%; justify-content: space-between; }
+    .calendar-header .d-flex { flex-direction: column; width: 100%; }
+    .calendar-header select, .calendar-header button { width: 100% !important; }
+    
+    /* Mention Button Mobile Fix (Keep above mobile keyboards/inputs) */
+    .mention-btn-toggle { bottom: 5rem; width: 3rem; height: 3rem; font-size: 1.25rem; }
+    #mentionPanel { bottom: 9rem; }
 }
 
 .mobile-toggle {
