@@ -52,7 +52,7 @@ class User(db.Model):
     resources = db.relationship('Resource', backref='shared_by', lazy=True)
     tasks_created = db.relationship('Task', foreign_keys='Task.created_by', backref='creator', lazy=True)
     events_created = db.relationship('Event', backref='creator', lazy=True)
-    channel_memberships = db.relationship('ChannelMember', foreign_keys='ChannelMember.user_id', backref='member', lazy=True, cascade="all, delete-orphan")
+    channel_memberships = db.relationship('ChannelMember', foreign_keys='ChannelMember.user_id', backref='member', lazy=True, cascade="all, delete-orphan", overlaps="user")
 
     def role_level(self):
         levels = {'jsec': 3, 'coordinator': 2, 'member': 1}
