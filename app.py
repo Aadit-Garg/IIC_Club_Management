@@ -46,6 +46,12 @@ def create_app():
         print('✓ Database tables created')
         seed_default_user()
 
+    # Register Error Handlers
+    from flask import render_template
+    @app.errorhandler(404)
+    def page_not_found(e):
+        return render_template('404.html'), 404
+
     return app
 
 app = create_app()

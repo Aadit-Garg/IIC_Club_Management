@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Page Not Found — IIC Club{% endblock %}
+{% block page_title %}404 Not Found{% endblock %}
+
+{% block content %}
+<div class="page-content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center;">
+    <div style="font-size: 5rem; margin-bottom: 1rem;">📭</div>
+    <h1 style="font-size: 2rem; color: #fff; margin-bottom: 0.5rem;">Resource Not Found</h1>
+    <p style="color: var(--text-dim); max-width: 400px; margin-bottom: 2rem;">
+        The page or resource you are looking for has been deleted or does not exist. It may have been removed by an administrator.
+    </p>
+    <a href="{{ url_for('views.dashboard') }}" class="btn btn-primary">Return to Dashboard</a>
+</div>
+{% endblock %}
