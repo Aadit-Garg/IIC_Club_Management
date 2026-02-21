@@ -21,7 +21,7 @@ class ChannelMember(db.Model):
 
     __table_args__ = (db.UniqueConstraint('channel_id', 'user_id'),)
 
-    user = db.relationship('User', foreign_keys=[user_id])
+    user = db.relationship('User', foreign_keys=[user_id], back_populates='channel_memberships')
     adder = db.relationship('User', foreign_keys=[added_by])
 
 
@@ -52,7 +52,7 @@ class User(db.Model):
     resources = db.relationship('Resource', backref='shared_by', lazy=True)
     tasks_created = db.relationship('Task', foreign_keys='Task.created_by', backref='creator', lazy=True)
     events_created = db.relationship('Event', backref='creator', lazy=True)
-    channel_memberships = db.relationship('ChannelMember', foreign_keys='ChannelMember.user_id', backref='member', lazy=True, cascade="all, delete-orphan", overlaps="user")
+    channel_memberships = db.relationship('ChannelMember', foreign_keys='ChannelMember.user_id', back_populates='user', lazy=True, cascade="all, delete-orphan")
 
     def role_level(self):
         levels = {'jsec': 3, 'coordinator': 2, 'member': 1}
