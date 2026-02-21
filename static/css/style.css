@@ -1189,9 +1189,10 @@ input[type="checkbox"] { accent-color: var(--blue); }
         bottom: 4rem; max-height: 70vh; 
     }
     /* Topbar & Header */
-    .topbar { padding: 0.5rem; flex-wrap: wrap; gap: 0.5rem; min-height: auto; }
+    .topbar { padding: 0.75rem 0.5rem; flex-direction: column; align-items: flex-start; gap: 0.5rem; min-height: auto; position: relative; }
+    .topbar > .d-flex { width: 100%; justify-content: flex-start; }
     .topbar-right { gap: 0.375rem; }
-    .topbar-actions { flex-wrap: wrap; justify-content: flex-end; width: 100%; margin-top: 0.25rem; }
+    .topbar-actions { width: 100%; justify-content: flex-start; margin-top: 0; padding-left: 2.5rem; }
 
     /* Calendar Header */
     .calendar-header { flex-direction: column; align-items: stretch; gap: 1rem; }
