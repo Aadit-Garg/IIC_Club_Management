@@ -1189,10 +1189,12 @@ input[type="checkbox"] { accent-color: var(--blue); }
         bottom: 4rem; max-height: 70vh; 
     }
     /* Topbar & Header */
-    .topbar { padding: 0.75rem 0.5rem; flex-direction: column; align-items: flex-start; gap: 0.5rem; min-height: auto; position: relative; }
-    .topbar > .d-flex { width: 100%; justify-content: flex-start; }
+    .topbar { padding: 0.5rem; flex-direction: row; align-items: center; justify-content: space-between; gap: 0.5rem; min-height: auto; position: relative; flex-wrap: wrap; }
+    .topbar > .d-flex { width: auto; justify-content: flex-start; }
     .topbar-right { gap: 0.375rem; }
-    .topbar-actions { width: 100%; justify-content: flex-start; margin-top: 0; padding-left: 2.5rem; }
+    .topbar-actions { width: auto; justify-content: flex-end; margin-top: 0; padding-left: 0; }
+    /* Make pills slightly smaller so they fit next to title */
+    .profile-id, .profile-role { font-size: 0.6rem; padding: 0.15rem 0.3rem; }
 
     /* Calendar Header */
     .calendar-header { flex-direction: column; align-items: stretch; gap: 1rem; }
