@@ -16,7 +16,14 @@ def create_app():
 
     # Configuration
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///club.db'
+    
+    # Use DATABASE_URL from env (Neon/Render), otherwise fallback to local SQLite
+    db_url = os.getenv('DATABASE_URL', 'sqlite:///club.db')
+    # SQLAlchemy 1.4+ requires postgresql:// instead of postgres://
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+        
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     # Initialize extensions

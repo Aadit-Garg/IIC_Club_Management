@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: iic-club-management
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: FLASK_APP
+        value: app.py
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false # You will manually enter the Neon DB URL in the Render dashboard
