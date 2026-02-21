@@ -48,7 +48,7 @@ a:hover { color: #fff; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
 /* ===== Layout ===== */
-.app-layout { display: flex; min-height: 100vh; }
+.app-layout { display: flex; min-height: 100dvh; }
 
 /* ===== Sidebar ===== */
 .sidebar {
@@ -57,7 +57,7 @@ a:hover { color: #fff; }
     border-right: 1px solid var(--border);
     position: fixed;
     top: 0; left: 0;
-    height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     z-index: 100;
@@ -136,7 +136,7 @@ a:hover { color: #fff; }
 .user-card-info .user-card-role { font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
 
 /* ===== Main ===== */
-.main-content { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; }
+.main-content { margin-left: var(--sidebar-w); flex: 1; min-height: 100dvh; }
 
 .topbar {
     height: var(--topbar-h);
